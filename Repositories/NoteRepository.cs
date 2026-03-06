@@ -101,10 +101,11 @@ public class NoteRepository : INoteRepository
     
     public async Task<IEnumerable<string>> GetDistinctTagsAsync()
     {
-        var defaultTags = new[] { "#Work", "#Design", "#Idea" };
-        var allNotes = await _context.Notes.ToListAsync();
-        var dbTags = allNotes.SelectMany(n => n.Tags).Distinct();
-        
-        return defaultTags.Concat(dbTags).Distinct();
+        return await _context.Notes
+            .SelectMany(n => n.Tags)
+            .Where(tag => !string.IsNullOrWhiteSpace(tag))  
+            .Distinct()                                      
+            .OrderBy(tag => tag)                             
+            .ToListAsync();
     }
 }
