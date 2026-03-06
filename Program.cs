@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi;
 using Microsoft.OpenApi.Models;
 using NotesApp.Api.Data;
 using NotesApp.Api.Repositories;
@@ -11,7 +12,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// ✅ Swagger com configuração básica
+// Swagger com configuracao
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "NoteesApp API", Version = "v1" });
@@ -25,18 +26,18 @@ builder.Services.AddScoped<INoteService, NoteService>();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// ✅ CORS - ÚNICA política, sem espaços, com AllowCredentials
+// CORS - Unica politica, sem espacos
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
         policy.WithOrigins(
-                "https://notees-app-ui.vercel.app",  
+                "https://notees-app-ui.vercel.app",
                 "http://localhost:5173"
             )
             .AllowAnyMethod()
             .AllowAnyHeader()
-            .AllowCredentials(); 
+            .AllowCredentials();
     });
 });
 
@@ -54,9 +55,7 @@ if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
 
 app.UseHttpsRedirection();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
-
 app.UseCors("AllowFrontend");
-
 app.UseAuthorization();
 app.MapControllers();
 
