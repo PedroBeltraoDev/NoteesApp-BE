@@ -96,5 +96,7 @@ dotnet ef migrations add NomeDaMigration
 dotnet ef database update
 ```
 👨‍💻 Autor
+
 Pedro Beltrão
+
 GitHub: @PedroBeltraoDev
