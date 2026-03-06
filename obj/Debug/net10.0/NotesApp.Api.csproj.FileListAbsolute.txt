@@ -123,3 +123,4 @@ D:\NotisProject\backend\NotesApp.Api\obj\Debug\net10.0\NotesApp.Api.genruntimeco
 D:\NotisProject\backend\NotesApp.Api\obj\Debug\net10.0\ref\NotesApp.Api.dll
 D:\NotisProject\backend\NotesApp.Api\bin\Debug\net10.0\Npgsql.dll
 D:\NotisProject\backend\NotesApp.Api\bin\Debug\net10.0\Npgsql.EntityFrameworkCore.PostgreSQL.dll
+D:\NotisProject\backend\NotesApp.Api\obj\Debug\net10.0\NotesApp.Api.sourcelink.json
