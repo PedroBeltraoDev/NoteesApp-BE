@@ -1,20 +1,51 @@
 # 📝 NotisApp API - Backend
 
-API RESTful para o aplicativo de notas NoteesApp, desenvolvida com .NET e PostgreSQL.
+> API RESTful para o aplicativo de notas NoteesApp, desenvolvida com .NET 8 e PostgreSQL.
+
+<p align="center">
+  <img src="https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet&logoColor=white" alt=".NET">
+  <img src="https://img.shields.io/badge/Entity_Framework-Core-6DB33F?logo=entityframework&logoColor=white" alt="EF Core">
+  <img src="https://img.shields.io/badge/PostgreSQL-15.x-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL">
+  <img src="https://img.shields.io/badge/Swagger-OpenAPI-85EA2D?logo=swagger&logoColor=black" alt="Swagger">
+  <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License">
+</p>
+
+---
+
+## 📖 Sobre
+
+O **NotisApp API** é o backend do sistema de gerenciamento de notas NoteesApp. Desenvolvido com .NET 8 e Entity Framework Core, oferece uma API RESTful robusta, segura e documentada para gerenciar notas, pastas e tags com alta performance e escalabilidade.
+
+### ✨ Destaques
+
+| Recurso | Descrição |
+|---------|-----------|
+| 🔐 **Segurança** | Validação de entrada, CORS configurado, boas práticas de API |
+| 📚 **Documentação** | Swagger/OpenAPI integrado para teste e documentação |
+| 🗄️ **Banco de Dados** | PostgreSQL com migrations via Entity Framework Core |
+| ⚡ **Performance** | Arquitetura em camadas, injeção de dependência, async/await |
+| 🔄 **Versionamento** | API versionada e preparada para evolução |
+| 🧪 **Testável** | Estrutura preparada para testes unitários e de integração |
+
+---
 
 ## 🚀 Tecnologias
 
 - **.NET 8.0** - Framework principal
-- **Entity Framework Core** - ORM
-- **PostgreSQL** - Banco de dados (Neon)
-- **Npgsql** - Provider PostgreSQL
-- **Swagger** - Documentação da API
+- **Entity Framework Core 8** - ORM para acesso a dados
+- **PostgreSQL** - Banco de dados relacional
+- **Npgsql** - Provider PostgreSQL para EF Core
+- **Swagger/OpenAPI** - Documentação automática da API
+- **ASP.NET Core Web API** - Framework para APIs REST
+- **Minimal APIs / Controllers** - Padrão de rotas
+
+---
 
 ## 📋 Pré-requisitos
 
-- .NET 8.0 ou superior
-- PostgreSQL (recomendado: Neon - https://neon.tech)
-- Git
+- **.NET 8.0 SDK** ou superior
+- **PostgreSQL 15+** (recomendado: [Neon](https://neon.tech) para cloud)
+- **Git** instalado
 
 ## 🔧 Instalação
 
