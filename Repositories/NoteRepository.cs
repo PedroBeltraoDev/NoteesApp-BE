@@ -89,14 +89,12 @@ public class NoteRepository : INoteRepository
     
     public async Task<IEnumerable<string>> GetDistinctFoldersAsync()
     {
-        var allFolders = new[] { "Projetos", "Pessoal", "Aprendendo", "Viagem", "Arquivos" };
-        var dbFolders = await _context.Notes
-            .Where(n => n.Folder != null)
-            .Select(n => n.Folder)
+        return await _context.Notes
+            .Where(n => !string.IsNullOrWhiteSpace(n.Folder))
+            .Select(n => n.Folder!)
             .Distinct()
+            .OrderBy(f => f)
             .ToListAsync();
-        
-        return allFolders.Concat(dbFolders ?? Enumerable.Empty<string>()).Distinct();
     }
     
     public async Task<IEnumerable<string>> GetDistinctTagsAsync()
