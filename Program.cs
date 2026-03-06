@@ -20,11 +20,16 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins(
-                "https://notees-app-ui.vercel.app",
-                "http://localhost:5173",
-                "http://localhost:4173"
-            )
+        policy.SetIsOriginAllowed(origin =>
+            {
+                if (origin.Contains("notees-app") && origin.Contains("vercel.app"))
+                    return true;
+                
+                if (origin.StartsWith("http://localhost"))
+                    return true;
+            
+                return false;
+            })
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials();
