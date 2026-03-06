@@ -22,7 +22,7 @@ public class ExceptionHandlingMiddleware
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An error occurred while processing the request");
+            _logger.LogError(ex, "An error occurred");
             await HandleExceptionAsync(context, ex);
         }
     }
@@ -31,6 +31,10 @@ public class ExceptionHandlingMiddleware
     {
         var response = context.Response;
         response.ContentType = "application/json";
+        
+        response.Headers.Append("Access-Control-Allow-Origin", 
+            context.Request.Headers["Origin"]);
+        response.Headers.Append("Access-Control-Allow-Credentials", "true");
         
         var statusCode = exception switch
         {
