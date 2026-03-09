@@ -33,7 +33,7 @@ Este projeto foi criado como **projeto de portfólio** para demonstrar conhecime
 | ORM | Entity Framework Core |
 | Banco de Dados | PostgreSQL (Neon) |
 | Documentação | Swagger / OpenAPI |
-| Deploy | Render |
+| Deploy | Render / Vercel |
 | Arquitetura | Repository Pattern + Service Layer |
 | Infra | Docker |
 | Segurança | CORS + HTTPS |
