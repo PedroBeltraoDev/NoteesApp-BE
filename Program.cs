@@ -18,8 +18,8 @@ builder.Services.AddSwaggerGen(c =>
         Description = "API RESTful para gerenciamento de notas com organização por pastas e tags",
         Contact = new OpenApiContact
         {
-            Name = "Pedro Beltrão",
-            Email = "seu-email@exemplo.com",
+            Name = "Pedro Beltrão GitHub",
+            Email = "pedrobeltraodev@gmail.com",
             Url = new Uri("https://github.com/PedroBeltraoDev")
         }
     });
