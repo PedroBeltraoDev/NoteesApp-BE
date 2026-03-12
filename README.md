@@ -14,17 +14,6 @@ Este projeto foi criado como **projeto de portfólio** para demonstrar conhecime
 
 ---
 
-# 🔗 Links do Projeto
-
-| Recurso | Link |
-|------|------|
-| Backend (GitHub) | https://github.com/PedroBeltraoDev/NoteesApp-BE |
-| API em Produção | https://noteesapp-be.onrender.com/api |
-| Swagger | https://noteesapp-be.onrender.com/swagger |
-| Banco de Dados | Neon PostgreSQL (Cloud) |
-
----
-
 # 🚀 Tecnologias Utilizadas
 
 | Categoria | Tecnologia |
