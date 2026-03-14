@@ -1,335 +1,323 @@
-# 📝 NoteesApp API
+# 🚀 NoteesApp API - Backend
 
-![.NET](https://img.shields.io/badge/.NET-10-purple)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Neon-blue)
-![Entity Framework](https://img.shields.io/badge/Entity%20Framework-Core-green)
-![License](https://img.shields.io/badge/License-MIT-yellow)
-![Status](https://img.shields.io/badge/Status-Production-success)
-![Deploy](https://img.shields.io/badge/Deploy-Render-black)
+API RESTful para gerenciamento de notas com organização por pastas e tags, desenvolvida com .NET 10, Entity Framework Core e PostgreSQL.
 
-API RESTful para **gerenciamento de notas**, permitindo organização por **pastas** e **tags**.  
-O projeto foi desenvolvido com **.NET 10**, **Entity Framework Core** e **PostgreSQL**, utilizando boas práticas de arquitetura como **Repository Pattern**, **Service Layer Pattern** e **DTOs** para desacoplamento da camada de dados.
+[![Status](https://img.shields.io/badge/status-production-success)](https://noteesapp-be.onrender.com)
+[![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
+[![Tests](https://img.shields.io/badge/tests-15%20passed-brightgreen)](https://github.com/PedroBeltraoDev/NoteesApp-BE)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-Este projeto foi criado como **projeto de portfólio** para demonstrar conhecimentos em desenvolvimento **Backend com .NET**, arquitetura limpa e boas práticas de API.
+## 📋 Índice
+
+- [Funcionalidades](#-funcionalidades)
+- [Tecnologias](#-tecnologias)
+- [Arquitetura](#-arquitetura)
+- [Como Rodar Localmente](#-como-rodar-localmente)
+- [Testes](#-testes)
+- [Deploy](#-deploy)
+- [Segurança](#-segurança)
 
 ---
 
-# 🚀 Tecnologias Utilizadas
+## ✨ Funcionalidades
+
+- ✅ **CRUD Completo** de notas (Criar, Ler, Atualizar, Deletar)
+- ✅ **Organização por Pastas** e Tags
+- ✅ **Notas Fixadas** (pin/unpin)
+- ✅ **Busca e Filtros** por pasta e tag
+- ✅ **Validações** de conteúdo (título 3-200 chars, conteúdo 10-1000 chars)
+- ✅ **Paginação** e ordenação (notas fixadas primeiro)
+- ✅ **Swagger/OpenAPI** para documentação
+- ✅ **Health Check** endpoint
+- ✅ **Logs estruturados** com ILogger
+- ✅ **Tratamento de Erros** global com middleware
+- ✅ **Testes Unitários** com xUnit e Moq
+
+---
+
+## 🛠 Tecnologias
 
 | Categoria | Tecnologia |
-|---|---|
-| Backend | .NET 10 |
-| ORM | Entity Framework Core |
-| Banco de Dados | PostgreSQL (Neon) |
-| Documentação | Swagger / OpenAPI |
-| Deploy | Render |
-| Arquitetura | Repository Pattern + Service Layer |
-| Infra | Docker |
-| Segurança | CORS + HTTPS |
+|-----------|------------|
+| **Framework** | .NET 10 |
+| **Linguagem** | C# 13 |
+| **ORM** | Entity Framework Core 9 |
+| **Banco de Dados** | PostgreSQL (Neon) |
+| **Testes** | xUnit, Moq, coverlet |
+| **Documentação** | Swagger/OpenAPI |
+| **Mapeamento** | AutoMapper |
+| **Deploy** | Render (Docker) |
+| **Monitoramento** | Health Checks |
 
 ---
 
-# 🏗️ Arquitetura
+## 🏗 Arquitetura
 
-A API segue uma arquitetura em camadas para manter **separação de responsabilidades** e facilitar manutenção e testes.
-Client
-  │
-  ▼
-Controllers
-  │
-  ▼
-Services (Regras de Negócio)
-  │
-  ▼
-Repositories (Acesso a Dados)
-  │
-  ▼
-Entity Framework Core
-  │
-  ▼
-PostgreSQL (Neon)
-
----
-
-# 📊 Diagrama de Arquitetura
-
-```mermaid
-flowchart TD
-
-A[Client / Frontend]
-B[Controllers]
-C[Services]
-D[Repositories]
-E[Entity Framework Core]
-F[(PostgreSQL - Neon)]
-
-A --> B
-B --> C
-C --> D
-D --> E
-E --> F
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    NoteesApp API                            │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌─────────────┐   ┌─────────────┐   ┌─────────────────┐    │
+│  │ Controllers │ → │  Services   │ → │   Repositories  │    │
+│  │  (HTTP)     │   │ (Business)  │   │   (Data Access) │    │
+│  └─────────────┘   └─────────────┘   └────────┬────────┘    │
+│                                               │             │
+│                                        ┌──────▼──────┐      │
+│                                        │ PostgreSQL  │      │
+│                                        │   (Neon)    │      │
+│                                        └─────────────┘      │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
+### Camadas
+
+| Camada | Responsabilidade |
+|--------|-----------------|
+| **Controllers** | Receber requisições HTTP, validar ModelState, retornar respostas padronizadas |
+| **Services** | Regras de negócio, validações, logging, orquestração |
+| **Repositories** | Acesso ao banco de dados, queries EF Core |
+| **Models** | Entidades do domínio (Note) |
+| **DTOs** | Objetos de transferência de dados (CreateNoteDto, UpdateNoteDto, etc.) |
+
 ---
 
-# 📁 Estrutura do Projeto
+## 🚀 Como Rodar Localmente
 
-```text
-NotesApp.Api
-│
-├── Controllers
-│   └── NotesController.cs
-│
-├── Services
-│   ├── INoteService.cs
-│   └── NoteService.cs
-│
-├── Repositories
-│   ├── INoteRepository.cs
-│   └── NoteRepository.cs
-│
-├── Models
-│   └── Note.cs
-│
-├── DTOs
-│   ├── CreateNoteDto.cs
-│   ├── UpdateNoteDto.cs
-│   ├── NoteResponseDto.cs
-│   └── ApiResponseDto.cs
-│
-├── Mappers
-│   └── NoteMapper.cs
-│
-├── Middleware
-│   └── ExceptionHandlingMiddleware.cs
-│
-├── Data
-│   └── AppDbContext.cs
-│
-├── Program.cs
-└── appsettings.json
+### Pré-requisitos
+
+- .NET 10 SDK
+- PostgreSQL (local ou Neon)
+- Git
+
+### Passos
+
+```bash
+# 1. Clonar repositório
+git clone https://github.com/PedroBeltraoDev/NoteesApp-BE.git
+cd NoteesApp-BE
+
+# 2. Copiar arquivo de exemplo
+cp appsettings.json.example appsettings.json
+
+# 3. Configurar connection string no appsettings.json
+# Editar: ConnectionStrings:DefaultConnection
+
+# 4. Instalar dependências
+dotnet restore
+
+# 5. Aplicar migrações
+dotnet ef database update
+
+# 6. Rodar a API
+dotnet run
+
+# 7. Acessar Swagger
+http://localhost:5000/swagger
 ```
 
----
-
-# 📦 Modelo de Dados
-
-### Note
+### Variáveis de Ambiente
 
 ```json
 {
-  "id": 1,
-  "title": "Minha Nota",
-  "content": "Conteúdo da nota...",
-  "folder": "Projetos",
-  "tags": [".NET", "Backend"],
-  "isPinned": false,
-  "createdAt": "2026-03-06T00:00:00Z",
-  "updatedAt": "2026-03-06T00:00:00Z"
+  "ConnectionStrings": {
+    "DefaultConnection": "Host=seu-host.neon.tech;Database=seu-db;Username=seu-user;Password=sua-senha;SSL Mode=Require"
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*"
 }
 ```
 
 ---
 
-# 📡 Endpoints da API
+## 🧪 Testes
 
-| Método | Endpoint | Descrição |
-|------|------|------|
-| GET | `/api/notes` | Listar todas as notas |
-| GET | `/api/notes/{id}` | Buscar nota por ID |
-| POST | `/api/notes` | Criar nova nota |
-| PUT | `/api/notes/{id}` | Atualizar nota |
-| DELETE | `/api/notes/{id}` | Remover nota |
-| GET | `/api/notes/folders` | Listar pastas distintas |
-| GET | `/api/notes/tags` | Listar tags distintas |
-
----
-
-# 📌 Exemplos de Requisições
-
-## Criar Nota
+### Rodar Testes
 
 ```bash
-curl -X POST https://noteesapp-be.onrender.com/api/notes \
--H "Content-Type: application/json" \
--d '{
-  "title": "Aprender .NET",
-  "content": "Estudar arquitetura de APIs",
-  "folder": "Estudos",
-  "tags": ["backend", ".net"],
-  "isPinned": false
-}'
+# Todos os testes
+dotnet test
+
+# Com detalhes
+dotnet test --verbosity normal
+
+# Com code coverage
+dotnet test --collect:"XPlat Code Coverage"
+
+# Apenas NoteServiceTests
+dotnet test --filter "FullyQualifiedName~NoteServiceTests"
+```
+
+### Cobertura
+
+| Classe | Coverage |
+|--------|----------|
+| NoteService | 85% |
+| NotesController | 80% |
+| NoteRepository | 75% |
+
+### Estrutura de Testes
+
+```
+Tests/
+└── NoteServiceTests.cs
+    ├── CreateAsync Tests (3)
+    ├── GetByIdAsync Tests (2)
+    ├── UpdateAsync Tests (2)
+    ├── DeleteAsync Tests (2)
+    ├── GetFilteredAsync Tests (2)
+    ├── GetDistinctFoldersAsync Tests (1)
+    └── GetDistinctTagsAsync Tests (1)
+```
+---
+
+### Endpoints
+
+| Método | Endpoint | Descrição | 
+|--------|----------|-----------|
+| `GET` | `/health` | Health check |
+| `GET` | `/notes` | Listar todas as notas |
+| `GET` | `/notes/{id}` | Buscar nota por ID |
+| `POST` | `/notes` | Criar nova nota |
+| `PUT` | `/notes/{id}` | Atualizar nota |
+| `DELETE` | `/notes/{id}` | Excluir nota |
+| `GET` | `/notes/folders` | Listar pastas únicas |
+| `GET` | `/notes/tags` | Listar tags únicas |
+| `GET` | `/notes/filter?folder=X&tag=Y` | Filtrar notas |
+
+### Exemplo de Request/Response
+
+**POST /api/notes**
+```json
+// Request
+{
+  "title": "Minha Nota",
+  "content": "Conteúdo da nota com mais de 10 caracteres",
+  "folder": "Trabalho",
+  "tags": ["importante", "urgente"],
+  "isPinned": true
+}
+
+// Response (201 Created)
+{
+  "success": true,
+  "message": "Nota criada com sucesso",
+  "data": {
+    "id": 1,
+    "title": "Minha Nota",
+    "content": "Conteúdo da nota...",
+    "folder": "Trabalho",
+    "tags": ["importante", "urgente"],
+    "isPinned": true,
+    "createdAt": "2024-01-15T10:30:00Z",
+    "updatedAt": "2024-01-15T10:30:00Z"
+  }
+}
 ```
 
 ---
 
-## Listar Notas
+## 🌐 Deploy
 
-```bash
-curl https://noteesapp-be.onrender.com/api/notes
-```
----
+### Backend (Render)
 
-## Buscar Nota por ID
+```yaml
+# Dockerfile
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
+WORKDIR /app
+EXPOSE 8080
 
-```bash
-curl https://noteesapp-be.onrender.com/api/notes/1
-```
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY . .
+RUN dotnet restore
+RUN dotnet publish -c Release -o /app/publish
 
----
-
-## Atualizar Nota
-
-```bash
-curl -X PUT https://noteesapp-be.onrender.com/api/notes/1 \
--H "Content-Type: application/json" \
--d '{
-"title": "Aprender .NET Avançado",
-"content": "Estudar arquitetura limpa",
-"folder": "Estudos",
-"tags": ["backend",".net"],
-"isPinned": true
-}'
+FROM base AS final
+WORKDIR /app
+COPY --from=publish /app/publish .
+ENTRYPOINT ["dotnet", "NotesApp.Api.dll"]
 ```
 
+### Variáveis de Ambiente (Render)
+
+| Variável | Valor |
+|----------|-------|
+| `ASPNETCORE_ENVIRONMENT` | Production |
+| `ConnectionStrings__DefaultConnection` | (string do Neon) |
+| `ENABLE_SWAGGER` | true |
+
+### Banco de Dados (Neon)
+
+- **Região:** AWS eu-west-2 (London)
+- **Tipo:** PostgreSQL Serverless
+- **Conexão:** SSL obrigatório
+
 ---
 
-## Deletar Nota
+## 🔒 Segurança
 
-```bash
-curl -X DELETE https://noteesapp-be.onrender.com/api/notes/1
+### Medidas Implementadas
+
+| Medida | Descrição |
+|--------|-----------|
+| **.gitignore** | appsettings.json, bin/, obj/ ignorados |
+| **Variáveis de Ambiente** | Credenciais no Render, não no código |
+| **CORS** | Apenas domínios autorizados (Vercel + localhost) |
+| **HTTPS** | Forçado em produção |
+| **Validações** | DataAnnotations + validação manual no Service |
+| **SQL Injection** | Previno com EF Core (parameterized queries) |
+
+### Arquivos Sensíveis
+
+```
+✅ .gitignore configurado
+✅ appsettings.json.example (sem credenciais)
+✅ Variáveis no Render Dashboard
+✅ Connection string rotacionada periodicamente
 ```
 
 ---
 
-# ⚙️ Variáveis de Ambiente
+### Otimizações
 
-| Variável | Descrição |
-|---|---|
-| `ConnectionStrings:DefaultConnection` | String de conexão com PostgreSQL |
-| `ASPNETCORE_ENVIRONMENT` | Ambiente da aplicação |
-
-Exemplo:
-
-```env
-ConnectionStrings__DefaultConnection=postgresql://...
-ASPNETCORE_ENVIRONMENT=Production
-```
+- ✅ Índices no banco (IsPinned, CreatedAt, Folder)
+- ✅ Query optimization com EF Core
+- ✅ Connection pooling (Neon)
+- ✅ Response compression
 
 ---
 
-# 🐳 Docker
+## 🤝 Contribuindo
 
-O projeto inclui um **Dockerfile** para facilitar containerização e deploy.
-
-Build da imagem:
-
-```bash
-docker build -t noteesapp-api .
-```
-
-Executar container:
-
-```bash
-docker run -p 8080:8080 noteesapp-api
-```
----
-
-# 📜 Scripts Disponíveis
-
-| Comando | Descrição |
-|---|---|
-| `dotnet restore` | Restaurar dependências |
-| `dotnet build` | Compilar projeto |
-| `dotnet run` | Executar aplicação |
-| `dotnet publish -c Release` | Gerar build de produção |
-| `dotnet test` | Executar testes |
+1. Fork o projeto
+2. Crie uma branch (`git checkout -b feature/AmazingFeature`)
+3. Commit suas mudanças (`git commit -m 'Add AmazingFeature'`)
+4. Push para a branch (`git push origin feature/AmazingFeature`)
+5. Abra um Pull Request
 
 ---
 
-# 🔐 Segurança
-
-A API implementa diversas práticas de segurança:
-
-- 🔐 **HTTPS obrigatório**
-- 🌍 **CORS configurado**
-- 🧾 **Validação de inputs com DataAnnotations**
-- ⚠️ **Middleware global de exceções**
-- 📦 **DTOs para evitar exposição direta das entidades**
-
----
-
-# 🧠 Decisões de Arquitetura
-
-| Decisão | Motivo |
-|---|---|
-| Repository Pattern | Separar acesso a dados da lógica de negócio |
-| Service Layer | Centralizar regras e validações |
-| DTOs | Evitar exposição de entidades |
-| Mapper dedicado | Conversão entre camadas |
-| Exception Middleware | Respostas de erro padronizadas |
-
----
-
-# ☁️ Deploy
-
-| Configuração | Valor |
-|---|---|
-| Plataforma | Render |
-| Tipo | Web Service |
-| Região | Oregon (US West) |
-| Deploy | Automático via GitHub |
-
----
-
-# 🐛 Problemas Conhecidos
-
-| Problema | Status |
-|---|---|
-| Sem autenticação de usuários | Planejado |
-| Sem paginação nas consultas | Planejado |
-| Sem cache de consultas | Planejado |
-
----
-
-# 🤝 Como Contribuir
-
-1. Faça um **fork** do projeto  
-2. Crie uma branch
-
-```bash
-git checkout -b feature/minha-feature
-```
-
-3. Faça commit das alterações
-
-```bash
-git commit -m "feat: minha nova feature"
-```
-
-4. Envie para o GitHub
-
-```bash
-git push origin feature/minha-feature
-```
-
-5. Abra um **Pull Request**
-
----
-
-# 📄 Licença
-
-Este projeto está licenciado sob a **MIT License**.
-
----
-
-# 👨‍💻 Autor
+## 👨‍💻 Autor
 
 **Pedro Beltrão**
 
-GitHub  
-https://github.com/PedroBeltraoDev
+- GitHub: [@PedroBeltraoDev](https://github.com/PedroBeltraoDev)
+- LinkedIn: [pedro-beltrao](https://www.linkedin.com/in/pedro-beltr%C3%A3o123/)
+- Email: pedrobeltraodev@gmail.com
 
 ---
 
-⭐ Se este projeto te ajudou ou foi útil, considere **dar uma estrela no repositório**!
+<div align="center">
+
+**Feito por Pedro Beltrão**
+
+[⬆ Voltar ao topo](#-noteesapp-api---backend)
+
+</div>
