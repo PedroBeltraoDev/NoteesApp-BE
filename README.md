@@ -4,8 +4,6 @@ API RESTful para gerenciamento de notas com organização por pastas e tags, des
 
 [![Status](https://img.shields.io/badge/status-production-success)](https://noteesapp-be.onrender.com)
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
-[![Tests](https://img.shields.io/badge/tests-15%20passed-brightgreen)](https://github.com/PedroBeltraoDev/NoteesApp-BE)
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 ## 📋 Índice
 
