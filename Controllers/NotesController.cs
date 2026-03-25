@@ -13,10 +13,7 @@ public class NotesController : ControllerBase
     private readonly ILogger<NotesController> _logger;
     private readonly IMapper _mapper;
 
-    public NotesController(
-        INoteService noteService, 
-        ILogger<NotesController> logger,
-        IMapper mapper)
+    public NotesController(INoteService noteService, ILogger<NotesController> logger, IMapper mapper)
     {
         _noteService = noteService;
         _logger = logger;
@@ -69,10 +66,9 @@ public class NotesController : ControllerBase
             if (!ModelState.IsValid)
                 return BadRequest(ApiResponseDto<NoteResponseDto>.Fail("Dados inválidos"));
             
-            //Passar DTO para o Service
+            //passa o DTO para o service
             var createdNote = await _noteService.CreateAsync(dto);
             
-            //Mapear Note → NoteResponseDto para resposta
             var response = _mapper.Map<NoteResponseDto>(createdNote);
             
             return CreatedAtAction(
@@ -102,10 +98,9 @@ public class NotesController : ControllerBase
             if (!ModelState.IsValid)
                 return BadRequest(ApiResponseDto<NoteResponseDto>.Fail("Dados inválidos"));
             
-            //Passar DTO para o Service 
+            //passa o DTO para o service 
             var updatedNote = await _noteService.UpdateAsync(dto);
             
-            //Mapear Note → NoteResponseDto para resposta
             var response = _mapper.Map<NoteResponseDto>(updatedNote);
             
             return Ok(ApiResponseDto<NoteResponseDto>.Ok(response, "Nota atualizada com sucesso"));

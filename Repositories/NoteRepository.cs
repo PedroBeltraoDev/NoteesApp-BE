@@ -99,12 +99,10 @@ public class NoteRepository : INoteRepository
     
     public async Task<IEnumerable<string>> GetDistinctTagsAsync()
     {
-        // Trazer todas as notas com tags para memória
         var notes = await _context.Notes
             .Where(n => n.Tags.Count > 0) 
             .ToListAsync();
-    
-        // Processar tags em C# e retornar como IEnumerable
+        
         return notes
             .SelectMany(n => n.Tags)
             .Where(t => !string.IsNullOrWhiteSpace(t))
