@@ -1,5 +1,5 @@
 ﻿using System.Net;
-using System.Text.Json;
+using NotesApp.Api.DTOs;
 
 namespace NotesApp.Api.Middleware;
 
@@ -20,38 +20,25 @@ public class ExceptionHandlingMiddleware
         {
             await _next(context);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (!context.Response.HasStarted)
         {
-            _logger.LogError(ex, "An error occurred");
             await HandleExceptionAsync(context, ex);
         }
     }
 
-    private static Task HandleExceptionAsync(HttpContext context, Exception exception)
+    private async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
-        var response = context.Response;
-        response.ContentType = "application/json";
-        
-        response.Headers.Append("Access-Control-Allow-Origin", 
-            context.Request.Headers["Origin"]);
-        response.Headers.Append("Access-Control-Allow-Credentials", "true");
-        
-        var statusCode = exception switch
+        var (statusCode, message) = exception switch
         {
-            KeyNotFoundException => HttpStatusCode.NotFound,
-            ArgumentException => HttpStatusCode.BadRequest,
-            UnauthorizedAccessException => HttpStatusCode.Unauthorized,
-            _ => HttpStatusCode.InternalServerError
+            KeyNotFoundException => (HttpStatusCode.NotFound, "Nota não encontrada"),
+            ArgumentException => (HttpStatusCode.BadRequest, exception.Message),
+            _ => (HttpStatusCode.InternalServerError, "Erro interno do servidor")
         };
-        
-        response.StatusCode = (int)statusCode;
-        
-        var result = JsonSerializer.Serialize(new
-        {
-            error = exception.Message,
-            statusCode = (int)statusCode
-        });
-        
-        return response.WriteAsync(result);
+
+        if (statusCode == HttpStatusCode.InternalServerError)
+            _logger.LogError(exception, "Erro não tratado em {Method} {Path}", context.Request.Method, context.Request.Path);
+
+        context.Response.StatusCode = (int)statusCode;
+        await context.Response.WriteAsJsonAsync(ApiResponseDto<object>.Fail(message));
     }
 }

@@ -166,9 +166,9 @@ public class NoteServiceTests
     public async Task UpdateAsync_WhenDtoIsValid_UpdatesNote()
     {
         // Arrange
+        const int noteId = 1;
         var updateDto = new UpdateNoteDto
         {
-            Id = 1,
             Title = "Título Atualizado",
             Content = "Conteúdo atualizado com mais de 10 caracteres",
             Folder = "Atualizados",
@@ -185,18 +185,18 @@ public class NoteServiceTests
             Tags = ["antigo"]
         };
 
-        _repositoryMock.Setup(r => r.GetByIdAsync(updateDto.Id))
+        _repositoryMock.Setup(r => r.GetByIdAsync(noteId))
                       .ReturnsAsync(existingNote);
 
         _repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<Note>()))
                       .Returns(Task.FromResult<Note?>(existingNote));
 
         // Act
-        var result = await _noteService.UpdateAsync(updateDto);
+        var result = await _noteService.UpdateAsync(noteId, updateDto);
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal(updateDto.Id, result.Id);
+        Assert.Equal(noteId, result.Id);
         
         _repositoryMock.Verify(r => r.UpdateAsync(It.IsAny<Note>()), Times.Once);
     }
@@ -205,20 +205,20 @@ public class NoteServiceTests
     public async Task UpdateAsync_WhenNoteNotFound_ThrowsKeyNotFoundException()
     {
         // Arrange
+        const int noteId = 999;
         var updateDto = new UpdateNoteDto
         {
-            Id = 999,
             Title = "Título Inválido",
             Content = "Conteúdo inválido",
             Tags = []
         };
 
-        _repositoryMock.Setup(r => r.GetByIdAsync(updateDto.Id))
+        _repositoryMock.Setup(r => r.GetByIdAsync(noteId))
                       .ReturnsAsync((Note?)null);
 
         // Act & Assert
         await Assert.ThrowsAsync<KeyNotFoundException>(() => 
-            _noteService.UpdateAsync(updateDto));
+            _noteService.UpdateAsync(noteId, updateDto));
     }
 
     #endregion
@@ -295,7 +295,7 @@ public class NoteServiceTests
             new() { Id = 2, Title = "Nota 2", Content = "Conteúdo 2", Folder = folder, Tags = [] }
         };
 
-        _repositoryMock.Setup(r => r.GetByFolderAsync(folder))
+        _repositoryMock.Setup(r => r.GetFilteredAsync(folder, null))
                       .ReturnsAsync(notesInFolder);
 
         // Act
@@ -348,6 +348,132 @@ public class NoteServiceTests
         // Assert
         Assert.NotNull(result);
         Assert.Equal(tags, result);
+    }
+
+    #endregion
+
+    #region Normalização e validação de pasta/tags
+
+    [Fact]
+    public async Task CreateAsync_NormalizesTagsAndFolder()
+    {
+        // Arrange
+        var createDto = new CreateNoteDto
+        {
+            Title = "Nota de Teste",
+            Content = "Conteúdo válido com mais de 10 caracteres",
+            Folder = "  Trabalho  ",
+            Tags = ["  Importante ", "importante", "", "   ", "Urgente"]
+        };
+
+        _mapperMock.Setup(m => m.Map<Note>(createDto)).Returns(new Note());
+        _repositoryMock.Setup(r => r.CreateAsync(It.IsAny<Note>()))
+                      .ReturnsAsync(new Note { Id = 1 });
+
+        // Act
+        await _noteService.CreateAsync(createDto);
+
+        // Assert - o DTO chega normalizado ao mapper
+        Assert.Equal("Trabalho", createDto.Folder);
+        Assert.Equal(["Importante", "Urgente"], createDto.Tags);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenFolderIsBlank_StoresNull()
+    {
+        var createDto = new CreateNoteDto
+        {
+            Title = "Nota de Teste",
+            Content = "Conteúdo válido com mais de 10 caracteres",
+            Folder = "   "
+        };
+
+        _mapperMock.Setup(m => m.Map<Note>(createDto)).Returns(new Note());
+        _repositoryMock.Setup(r => r.CreateAsync(It.IsAny<Note>()))
+                      .ReturnsAsync(new Note { Id = 1 });
+
+        await _noteService.CreateAsync(createDto);
+
+        Assert.Null(createDto.Folder);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenTooManyTags_ThrowsArgumentException()
+    {
+        var createDto = new CreateNoteDto
+        {
+            Title = "Nota de Teste",
+            Content = "Conteúdo válido com mais de 10 caracteres",
+            Tags = [.. Enumerable.Range(1, 21).Select(i => $"tag{i}")]
+        };
+
+        await Assert.ThrowsAsync<ArgumentException>(() => _noteService.CreateAsync(createDto));
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenTagIsTooLong_ThrowsArgumentException()
+    {
+        var createDto = new CreateNoteDto
+        {
+            Title = "Nota de Teste",
+            Content = "Conteúdo válido com mais de 10 caracteres",
+            Tags = [new string('a', 51)]
+        };
+
+        await Assert.ThrowsAsync<ArgumentException>(() => _noteService.CreateAsync(createDto));
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenFolderIsTooLong_ThrowsArgumentException()
+    {
+        var createDto = new CreateNoteDto
+        {
+            Title = "Nota de Teste",
+            Content = "Conteúdo válido com mais de 10 caracteres",
+            Folder = new string('a', 101)
+        };
+
+        await Assert.ThrowsAsync<ArgumentException>(() => _noteService.CreateAsync(createDto));
+    }
+
+    [Fact]
+    public async Task CreateAsync_ValidationMessage_DoesNotLeakParameterName()
+    {
+        var createDto = new CreateNoteDto { Title = "", Content = "Conteúdo válido com mais de 10 caracteres" };
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => _noteService.CreateAsync(createDto));
+
+        Assert.DoesNotContain("Parameter", ex.Message);
+    }
+
+    #endregion
+
+    #region GetFilteredAsync - tag
+
+    [Fact]
+    public async Task GetFilteredAsync_WhenTagFilter_DelegatesToRepositoryWithTrimmedTag()
+    {
+        var notes = new List<Note> { new() { Id = 1, Tags = ["Importante"] } };
+
+        _repositoryMock.Setup(r => r.GetFilteredAsync(null, "importante"))
+                      .ReturnsAsync(notes);
+
+        var result = await _noteService.GetFilteredAsync(null, "  importante ");
+
+        Assert.Single(result);
+        _repositoryMock.Verify(r => r.GetFilteredAsync(null, "importante"), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetFilteredAsync_WhenFolderAndTag_UsesSingleRepositoryQuery()
+    {
+        _repositoryMock.Setup(r => r.GetFilteredAsync("Trabalho", "urgente"))
+                      .ReturnsAsync(new List<Note>());
+
+        await _noteService.GetFilteredAsync("Trabalho", "urgente");
+
+        _repositoryMock.Verify(r => r.GetFilteredAsync("Trabalho", "urgente"), Times.Once);
+        _repositoryMock.Verify(r => r.GetAllAsync(), Times.Never);
     }
 
     #endregion

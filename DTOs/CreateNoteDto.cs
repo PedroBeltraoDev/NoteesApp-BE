@@ -14,6 +14,7 @@ public class CreateNoteDto
     [MaxLength(1000, ErrorMessage = "Conteúdo deve ter no máximo 1000 caracteres")]
     public string Content { get; set; } = string.Empty;
     
+    [MaxLength(100, ErrorMessage = "Pasta deve ter no máximo 100 caracteres")]
     public string? Folder { get; set; }
     
     public List<string> Tags { get; set; } = new();

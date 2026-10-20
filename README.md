@@ -183,7 +183,7 @@ Tests/
 | `GET` | `/notes` | Listar todas as notas |
 | `GET` | `/notes/{id}` | Buscar nota por ID |
 | `POST` | `/notes` | Criar nova nota |
-| `PUT` | `/notes/{id}` | Atualizar nota |
+| `PUT` | `/notes/{id}` | Atualizar nota (o `id` vem só da rota; não enviar no body) |
 | `DELETE` | `/notes/{id}` | Excluir nota |
 | `GET` | `/notes/folders` | Listar pastas únicas |
 | `GET` | `/notes/tags` | Listar tags únicas |
@@ -249,7 +249,8 @@ ENTRYPOINT ["dotnet", "NotesApp.Api.dll"]
 |----------|-------|
 | `ASPNETCORE_ENVIRONMENT` | Production |
 | `ConnectionStrings__DefaultConnection` | (string do Neon) |
-| `ENABLE_SWAGGER` | true |
+| `ENABLE_SWAGGER` | true (opcional; Swagger só fica ativo em Development ou com esta variável) |
+| `Cors__AllowedOrigins__0` | URL do frontend (ex.: `https://seu-app.vercel.app`). Sem isso, só `http://localhost:5173` é aceito |
 
 ### Banco de Dados (Neon)
 
@@ -267,7 +268,7 @@ ENTRYPOINT ["dotnet", "NotesApp.Api.dll"]
 |--------|-----------|
 | **.gitignore** | appsettings.json, bin/, obj/ ignorados |
 | **Variáveis de Ambiente** | Credenciais no Render, não no código |
-| **CORS** | Apenas domínios autorizados (Vercel + localhost) |
+| **CORS** | Apenas origens listadas em `Cors:AllowedOrigins` (padrão: localhost:5173) |
 | **HTTPS** | Forçado em produção |
 | **Validações** | DataAnnotations + validação manual no Service |
 | **SQL Injection** | Previno com EF Core (parameterized queries) |

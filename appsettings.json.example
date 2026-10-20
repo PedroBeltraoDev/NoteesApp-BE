@@ -8,5 +8,8 @@
       "Microsoft.AspNetCore": "Warning"
     }
   },
+  "Cors": {
+    "AllowedOrigins": [ "http://localhost:5173" ]
+  },
   "AllowedHosts": "*"
 }

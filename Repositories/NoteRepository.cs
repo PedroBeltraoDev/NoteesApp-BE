@@ -26,44 +26,32 @@ public class NoteRepository : INoteRepository
         return await _context.Notes.FindAsync(id);
     }
     
-    public async Task<IEnumerable<Note>> GetByFolderAsync(string folder)
-    {
-        return await _context.Notes
-            .Where(n => n.Folder == folder)
-            .OrderByDescending(n => n.IsPinned)
-            .ThenByDescending(n => n.CreatedAt)
-            .ToListAsync();
-    }
-    
-    public async Task<IEnumerable<Note>> GetByTagAsync(string tag)
-    {
-        return await _context.Notes
-            .Where(n => n.Tags.Contains(tag))
-            .OrderByDescending(n => n.IsPinned)
-            .ThenByDescending(n => n.CreatedAt)
-            .ToListAsync();
-    }
-    
-    public async Task<IEnumerable<Note>> GetFilteredAsync(string? folder, string? tag)
+    internal IQueryable<Note> BuildFilteredQuery(string? folder, string? tag)
     {
         var query = _context.Notes.AsQueryable();
-        
+
         if (!string.IsNullOrEmpty(folder))
         {
             query = query.Where(n => n.Folder == folder);
         }
-        
+
         if (!string.IsNullOrEmpty(tag))
         {
-            query = query.Where(n => n.Tags.Contains(tag));
+            // Case-insensitive: "Importante" e "importante" são a mesma tag
+            var lowerTag = tag.ToLower();
+            query = query.Where(n => n.Tags.Any(t => t.ToLower() == lowerTag));
         }
-        
-        return await query
+
+        return query
             .OrderByDescending(n => n.IsPinned)
-            .ThenByDescending(n => n.CreatedAt)
-            .ToListAsync();
+            .ThenByDescending(n => n.CreatedAt);
     }
-    
+
+    public async Task<IEnumerable<Note>> GetFilteredAsync(string? folder, string? tag)
+    {
+        return await BuildFilteredQuery(folder, tag).ToListAsync();
+    }
+
     public async Task<Note> CreateAsync(Note note)
     {
         _context.Notes.Add(note);
