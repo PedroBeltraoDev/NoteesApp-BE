@@ -1,4 +1,4 @@
-﻿{
+{
   "ConnectionStrings": {
     "DefaultConnection": "Host=YOUR_HOST;Database=YOUR_DB;Username=YOUR_USER;Password=YOUR_PASSWORD;SSL Mode=Require;Trust Server Certificate=true"
   },
@@ -10,6 +10,16 @@
   },
   "Cors": {
     "AllowedOrigins": [ "http://localhost:5173" ]
+  },
+  "Jwt": {
+    "Key": "TROQUE-por-uma-chave-aleatoria-com-no-minimo-32-caracteres",
+    "Issuer": "NoteesApp.Api",
+    "Audience": "NoteesApp.Client",
+    "AccessTokenMinutes": 15,
+    "RefreshTokenDays": 14
+  },
+  "RateLimiting": {
+    "AuthPermitLimit": 10
   },
   "AllowedHosts": "*"
 }

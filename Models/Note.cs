@@ -6,6 +6,10 @@ public class Note
 {
     public int Id { get; init; }
     
+    public Guid UserId { get; init; }
+    
+    public User? User { get; set; }
+    
     [MaxLength(200)]
     public string Title { get; set; } = string.Empty;
     

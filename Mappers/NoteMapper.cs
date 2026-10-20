@@ -5,12 +5,13 @@ namespace NotesApp.Api.Mappers;
 
 public static class NoteMapper
 {
-    public static Note ToEntity(this CreateNoteDto dto)
+    public static Note ToEntity(this CreateNoteDto dto, Guid userId)
     {
         var now = DateTime.UtcNow;
 
         return new Note
         {
+            UserId = userId,
             Title = dto.Title,
             Content = dto.Content,
             Folder = dto.Folder,
