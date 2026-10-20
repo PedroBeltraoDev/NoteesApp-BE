@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using NotesApp.Api.Data;
 using NotesApp.Api.Models;
 
@@ -18,6 +18,7 @@ public class NoteRepository : INoteRepository
         return await _context.Notes
             .OrderByDescending(n => n.IsPinned)
             .ThenByDescending(n => n.CreatedAt)
+            .ThenByDescending(n => n.Id)
             .ToListAsync();
     }
     
@@ -42,14 +43,29 @@ public class NoteRepository : INoteRepository
             query = query.Where(n => n.Tags.Any(t => t.ToLower() == lowerTag));
         }
 
+        // Id como desempate mantém a ordem estável entre páginas
         return query
             .OrderByDescending(n => n.IsPinned)
-            .ThenByDescending(n => n.CreatedAt);
+            .ThenByDescending(n => n.CreatedAt)
+            .ThenByDescending(n => n.Id);
     }
 
     public async Task<IEnumerable<Note>> GetFilteredAsync(string? folder, string? tag)
     {
         return await BuildFilteredQuery(folder, tag).ToListAsync();
+    }
+    
+    public async Task<PagedResult<Note>> GetPagedAsync(string? folder, string? tag, int page, int pageSize)
+    {
+        var query = BuildFilteredQuery(folder, tag);
+        
+        var total = await query.CountAsync();
+        var items = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+        
+        return new PagedResult<Note>(items, total);
     }
 
     public async Task<Note> CreateAsync(Note note)
@@ -85,19 +101,20 @@ public class NoteRepository : INoteRepository
             .ToListAsync();
     }
     
+    internal IQueryable<string> BuildDistinctTagsQuery()
+    {
+        // unnest no banco; tags que só diferem por maiúsculas/minúsculas viram uma só
+        // (mantém a grafia "menor" na ordenação, ex.: "Importante" antes de "importante")
+        return _context.Notes
+            .SelectMany(n => n.Tags)
+            .Where(t => t.Trim() != "")
+            .GroupBy(t => t.Trim().ToLower())
+            .Select(g => g.Min(t => t.Trim())!)
+            .OrderBy(t => t.ToLower());
+    }
+    
     public async Task<IEnumerable<string>> GetDistinctTagsAsync()
     {
-        var notes = await _context.Notes
-            .Where(n => n.Tags.Count > 0) 
-            .ToListAsync();
-        
-        return notes
-            .SelectMany(n => n.Tags)
-            .Where(t => !string.IsNullOrWhiteSpace(t))
-            .Select(t => t.Trim())
-            .Distinct()
-            .OrderBy(t => t)
-            .ToList()
-            .AsEnumerable();
+        return await BuildDistinctTagsQuery().ToListAsync();
     }
 }

@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using NotesApp.Api.DTOs;
 using NotesApp.Api.Mappers;
@@ -17,14 +18,34 @@ public class NotesController : ControllerBase
         _noteService = noteService;
     }
 
+    private const int DefaultPageSize = 20;
+
+    /// <summary>
+    /// Lista notas. Sem <c>page</c>/<c>pageSize</c> devolve todas (compatível com clientes antigos);
+    /// com qualquer um dos dois devolve uma página e preenche <c>pagination</c> na resposta.
+    /// </summary>
     [HttpGet]
     public async Task<ActionResult<ApiResponseDto<IEnumerable<NoteResponseDto>>>> GetAll(
         [FromQuery] string? folder,
-        [FromQuery] string? tag)
+        [FromQuery] string? tag,
+        [FromQuery, Range(1, 100_000, ErrorMessage = "page deve estar entre 1 e 100000")] int? page,
+        [FromQuery, Range(1, NoteService.MaxPageSize, ErrorMessage = "pageSize deve estar entre 1 e 100")] int? pageSize)
     {
-        var notes = await _noteService.GetFilteredAsync(folder, tag);
-        var response = notes.Select(n => n.ToResponse()).ToList();
-        return Ok(ApiResponseDto<IEnumerable<NoteResponseDto>>.Ok(response));
+        if (page is null && pageSize is null)
+        {
+            var notes = await _noteService.GetFilteredAsync(folder, tag);
+            var all = notes.Select(n => n.ToResponse()).ToList();
+            return Ok(ApiResponseDto<IEnumerable<NoteResponseDto>>.Ok(all));
+        }
+
+        var currentPage = page ?? 1;
+        var currentPageSize = pageSize ?? DefaultPageSize;
+
+        var result = await _noteService.GetPagedAsync(folder, tag, currentPage, currentPageSize);
+        var items = result.Items.Select(n => n.ToResponse()).ToList();
+        var pagination = new PaginationDto(currentPage, currentPageSize, result.TotalItems);
+
+        return Ok(ApiResponseDto<IEnumerable<NoteResponseDto>>.Ok(items, pagination));
     }
 
     [HttpGet("{id:int}")]

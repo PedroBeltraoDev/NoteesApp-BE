@@ -34,4 +34,23 @@ public class NoteRepositoryQueryTests
         Assert.Contains("Folder", sql);
         Assert.Contains("urgente", sql);
     }
+
+    [Fact]
+    public void BuildFilteredQuery_PagedQuery_UsesStableOrderingAndLimitOffset()
+    {
+        var sql = CreateRepository().BuildFilteredQuery(null, null).Skip(20).Take(10).ToQueryString();
+
+        Assert.Contains("ORDER BY n.\"IsPinned\" DESC, n.\"CreatedAt\" DESC, n.\"Id\" DESC", sql);
+        Assert.Contains("LIMIT", sql);
+        Assert.Contains("OFFSET", sql);
+    }
+
+    [Fact]
+    public void BuildDistinctTagsQuery_RunsInTheDatabase()
+    {
+        var sql = CreateRepository().BuildDistinctTagsQuery().ToQueryString();
+
+        Assert.Contains("unnest", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("GROUP BY", sql, StringComparison.OrdinalIgnoreCase);
+    }
 }

@@ -24,9 +24,9 @@ API RESTful para gerenciamento de notas com organização por pastas e tags, des
 - ✅ **Notas Fixadas** (pin/unpin)
 - ✅ **Busca e Filtros** por pasta e tag
 - ✅ **Validações** de conteúdo (título 3-200 chars, conteúdo 10-1000 chars)
-- ✅ **Ordenação** (notas fixadas primeiro, depois mais recentes)
+- ✅ **Paginação opcional** (`page`/`pageSize`) e ordenação (fixadas primeiro, depois mais recentes)
 - ✅ **Swagger/OpenAPI** para documentação
-- ✅ **Health Check** endpoint
+- ✅ **Health checks**: liveness (`/api/health`) e readiness com banco (`/api/health/ready`)
 - ✅ **Logs estruturados** com ILogger
 - ✅ **Tratamento de Erros** global com middleware
 - ✅ **Testes Unitários** com xUnit e Moq
@@ -116,6 +116,12 @@ dotnet run
 http://localhost:5216/swagger
 ```
 
+> **Migration `AddColumnLimitsAndNoteIndexes`**: limita `Folder` a 100 e `Content` a 1000 caracteres
+> (`varchar`) e cria índices para a listagem. Antes de alterar as colunas ela confere se existe nota acima
+> desses limites; se existir, **aborta com uma mensagem** (nada é truncado) e você precisa ajustar esses
+> registros antes de rodar `dotnet ef database update` de novo. Em produção o banco não é migrado
+> automaticamente: aplique a migration como passo do deploy.
+
 ### Variáveis de Ambiente
 
 ```json
@@ -171,8 +177,9 @@ NotesApp.Api.Tests/
 
 | Método | Endpoint | Descrição |
 |--------|----------|-----------|
-| `GET` | `/api/health` | Health check |
-| `GET` | `/api/notes` | Listar notas (filtros opcionais: `?folder=X&tag=Y`) |
+| `GET` | `/api/health` | Liveness: o processo está de pé (não acessa o banco) |
+| `GET` | `/api/health/ready` | Readiness: verifica o banco; responde `503` se estiver inacessível |
+| `GET` | `/api/notes` | Listar notas (filtros opcionais: `?folder=X&tag=Y`; paginação opcional: `?page=1&pageSize=20`) |
 | `GET` | `/api/notes/{id}` | Buscar nota por ID |
 | `POST` | `/api/notes` | Criar nova nota |
 | `PUT` | `/api/notes/{id}` | Atualizar nota (o `id` vem só da rota; não enviar no body) |
@@ -181,6 +188,25 @@ NotesApp.Api.Tests/
 | `GET` | `/api/notes/tags` | Listar tags únicas |
 
 Fixar/desafixar uma nota é feito alterando `isPinned` no `PUT`.
+
+### Paginação
+
+- Sem `page` nem `pageSize`, `GET /api/notes` devolve **todas** as notas (comportamento anterior).
+- Com qualquer um dos dois, devolve só a página pedida e preenche `pagination` na resposta
+  (`page` ≥ 1, `pageSize` de 1 a 100, padrão 20). Valores fora desses limites retornam `400`.
+- A ordem é estável entre páginas: fixadas primeiro, depois mais recentes, com o `id` como desempate.
+- O filtro por `tag` ignora maiúsculas/minúsculas e `GET /api/notes/tags` agrupa tags que só diferem por isso.
+
+```json
+{
+  "success": true,
+  "data": [ /* notas da página */ ],
+  "pagination": { "page": 2, "pageSize": 5, "totalItems": 11, "totalPages": 3 }
+}
+```
+
+> Use `/api/health` para pings frequentes (ex.: manter o Render acordado). `/api/health/ready`
+> abre conexão com o banco e, num Neon em *scale-to-zero*, acorda o banco a cada chamada.
 
 ### Exemplo de Request/Response
 

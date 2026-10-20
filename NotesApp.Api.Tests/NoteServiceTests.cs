@@ -474,4 +474,46 @@ public class NoteServiceTests
     }
 
     #endregion
+
+    #region GetPagedAsync Tests
+
+    [Fact]
+    public async Task GetPagedAsync_DelegatesToRepositoryWithTrimmedFilters()
+    {
+        var expected = new PagedResult<Note>([new Note { Id = 1 }], 42);
+        _repositoryMock.Setup(r => r.GetPagedAsync("Trabalho", "urgente", 2, 10))
+                      .ReturnsAsync(expected);
+
+        var result = await _noteService.GetPagedAsync("  Trabalho ", " urgente  ", 2, 10);
+
+        Assert.Same(expected, result);
+    }
+
+    [Fact]
+    public async Task GetPagedAsync_WhenFiltersAreBlank_PassesNull()
+    {
+        _repositoryMock.Setup(r => r.GetPagedAsync(null, null, 1, 20))
+                      .ReturnsAsync(new PagedResult<Note>([], 0));
+
+        await _noteService.GetPagedAsync("   ", "", 1, 20);
+
+        _repositoryMock.Verify(r => r.GetPagedAsync(null, null, 1, 20), Times.Once);
+    }
+
+    [Theory]
+    [InlineData(0, 10)]
+    [InlineData(-1, 10)]
+    [InlineData(1, 0)]
+    [InlineData(1, 101)]
+    public async Task GetPagedAsync_WhenPageParametersAreInvalid_ThrowsArgumentException(int page, int pageSize)
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            _noteService.GetPagedAsync(null, null, page, pageSize));
+
+        _repositoryMock.Verify(
+            r => r.GetPagedAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<int>()),
+            Times.Never);
+    }
+
+    #endregion
 }

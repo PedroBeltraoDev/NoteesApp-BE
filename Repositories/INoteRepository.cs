@@ -1,4 +1,4 @@
-﻿using NotesApp.Api.Models;
+using NotesApp.Api.Models;
 
 namespace NotesApp.Api.Repositories;
 
@@ -7,6 +7,7 @@ public interface INoteRepository
     Task<IEnumerable<Note>> GetAllAsync();
     Task<Note?> GetByIdAsync(int id);
     Task<IEnumerable<Note>> GetFilteredAsync(string? folder, string? tag);
+    Task<PagedResult<Note>> GetPagedAsync(string? folder, string? tag, int page, int pageSize);
     Task<Note> CreateAsync(Note note);
     Task UpdateAsync(Note note);
     Task DeleteAsync(int id);
