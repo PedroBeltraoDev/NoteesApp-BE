@@ -1,6 +1,46 @@
 @NotesApp.Api_HostAddress = http://localhost:5216
 
-GET {{NotesApp.Api_HostAddress}}/weatherforecast/
+### Health check
+GET {{NotesApp.Api_HostAddress}}/api/health
 Accept: application/json
 
+### Listar notas (filtros opcionais: folder, tag)
+GET {{NotesApp.Api_HostAddress}}/api/notes?folder=Trabalho&tag=importante
+Accept: application/json
+
+### Buscar nota por id
+GET {{NotesApp.Api_HostAddress}}/api/notes/1
+Accept: application/json
+
+### Criar nota
+POST {{NotesApp.Api_HostAddress}}/api/notes
+Content-Type: application/json
+
+{
+  "title": "Minha nota",
+  "content": "Conteúdo da nota com mais de 10 caracteres",
+  "folder": "Trabalho",
+  "tags": ["importante", "urgente"],
+  "isPinned": false
+}
+
+### Atualizar nota (o id vem só da rota)
+PUT {{NotesApp.Api_HostAddress}}/api/notes/1
+Content-Type: application/json
+
+{
+  "title": "Minha nota atualizada",
+  "content": "Conteúdo atualizado com mais de 10 caracteres",
+  "folder": "Trabalho",
+  "tags": ["importante"],
+  "isPinned": true
+}
+
+### Excluir nota
+DELETE {{NotesApp.Api_HostAddress}}/api/notes/1
+
+### Pastas e tags existentes
+GET {{NotesApp.Api_HostAddress}}/api/notes/folders
+
 ###
+GET {{NotesApp.Api_HostAddress}}/api/notes/tags

@@ -1,4 +1,4 @@
-﻿using AutoMapper;
+using Microsoft.Extensions.Logging;
 using Moq;
 using NotesApp.Api.DTOs;
 using NotesApp.Api.Models;
@@ -11,19 +11,16 @@ namespace NotesApp.Api.Tests;
 public class NoteServiceTests
 {
     private readonly Mock<INoteRepository> _repositoryMock;
-    private readonly Mock<IMapper> _mapperMock;
     private readonly NoteService _noteService;
 
     public NoteServiceTests()
     {
         _repositoryMock = new Mock<INoteRepository>();
-        _mapperMock = new Mock<IMapper>();
         var loggerMock = new Mock<ILogger<NoteService>>();
         
         _noteService = new NoteService(
             _repositoryMock.Object, 
-            loggerMock.Object, 
-            _mapperMock.Object
+            loggerMock.Object
         );
     }
 
@@ -53,15 +50,6 @@ public class NoteServiceTests
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-
-        _mapperMock.Setup(m => m.Map<Note>(createDto)).Returns(new Note 
-        { 
-            Title = createDto.Title, 
-            Content = createDto.Content,
-            Folder = createDto.Folder,
-            Tags = [.. createDto.Tags],
-            IsPinned = createDto.IsPinned
-        });
 
         _repositoryMock.Setup(r => r.CreateAsync(It.IsAny<Note>()))
                       .ReturnsAsync(expectedNote);
@@ -197,6 +185,11 @@ public class NoteServiceTests
         // Assert
         Assert.NotNull(result);
         Assert.Equal(noteId, result.Id);
+        Assert.Equal(updateDto.Title, result.Title);
+        Assert.Equal(updateDto.Folder, result.Folder);
+        Assert.Equal(["atualizado"], result.Tags);
+        Assert.True(result.IsPinned);
+        Assert.NotNull(result.UpdatedAt);
         
         _repositoryMock.Verify(r => r.UpdateAsync(It.IsAny<Note>()), Times.Once);
     }
@@ -366,16 +359,18 @@ public class NoteServiceTests
             Tags = ["  Importante ", "importante", "", "   ", "Urgente"]
         };
 
-        _mapperMock.Setup(m => m.Map<Note>(createDto)).Returns(new Note());
+        Note? saved = null;
         _repositoryMock.Setup(r => r.CreateAsync(It.IsAny<Note>()))
+                      .Callback<Note>(n => saved = n)
                       .ReturnsAsync(new Note { Id = 1 });
 
         // Act
         await _noteService.CreateAsync(createDto);
 
-        // Assert - o DTO chega normalizado ao mapper
-        Assert.Equal("Trabalho", createDto.Folder);
-        Assert.Equal(["Importante", "Urgente"], createDto.Tags);
+        // Assert - a nota persistida já vem normalizada
+        Assert.NotNull(saved);
+        Assert.Equal("Trabalho", saved.Folder);
+        Assert.Equal(["Importante", "Urgente"], saved.Tags);
     }
 
     [Fact]
@@ -388,13 +383,15 @@ public class NoteServiceTests
             Folder = "   "
         };
 
-        _mapperMock.Setup(m => m.Map<Note>(createDto)).Returns(new Note());
+        Note? saved = null;
         _repositoryMock.Setup(r => r.CreateAsync(It.IsAny<Note>()))
+                      .Callback<Note>(n => saved = n)
                       .ReturnsAsync(new Note { Id = 1 });
 
         await _noteService.CreateAsync(createDto);
 
-        Assert.Null(createDto.Folder);
+        Assert.NotNull(saved);
+        Assert.Null(saved.Folder);
     }
 
     [Fact]

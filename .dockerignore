@@ -1,0 +1,16 @@
+**/bin/
+**/obj/
+NotesApp.Api.Tests/
+NotesApp.sln
+.git/
+.idea/
+.claude/
+.vs/
+.vscode/
+
+# Segredos locais nunca entram na imagem
+appsettings.json
+appsettings.Development.json
+appsettings.*.local.json
+.env
+*.env

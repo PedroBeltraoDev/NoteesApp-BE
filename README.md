@@ -24,7 +24,7 @@ API RESTful para gerenciamento de notas com organização por pastas e tags, des
 - ✅ **Notas Fixadas** (pin/unpin)
 - ✅ **Busca e Filtros** por pasta e tag
 - ✅ **Validações** de conteúdo (título 3-200 chars, conteúdo 10-1000 chars)
-- ✅ **Paginação** e ordenação (notas fixadas primeiro)
+- ✅ **Ordenação** (notas fixadas primeiro, depois mais recentes)
 - ✅ **Swagger/OpenAPI** para documentação
 - ✅ **Health Check** endpoint
 - ✅ **Logs estruturados** com ILogger
@@ -39,11 +39,11 @@ API RESTful para gerenciamento de notas com organização por pastas e tags, des
 |-----------|------------|
 | **Framework** | .NET 10 |
 | **Linguagem** | C# 13 |
-| **ORM** | Entity Framework Core 9 |
+| **ORM** | Entity Framework Core 10 |
 | **Banco de Dados** | PostgreSQL (Neon) |
 | **Testes** | xUnit, Moq, coverlet |
 | **Documentação** | Swagger/OpenAPI |
-| **Mapeamento** | AutoMapper |
+| **Mapeamento** | Manual (extension methods em `Mappers/NoteMapper.cs`) |
 | **Deploy** | Render (Docker) |
 | **Monitoramento** | Health Checks |
 
@@ -76,6 +76,7 @@ API RESTful para gerenciamento de notas com organização por pastas e tags, des
 | **Controllers** | Receber requisições HTTP, validar ModelState, retornar respostas padronizadas |
 | **Services** | Regras de negócio, validações, logging, orquestração |
 | **Repositories** | Acesso ao banco de dados, queries EF Core |
+| **Mappers** | Conversão entre DTOs e entidade (`NoteMapper`) |
 | **Models** | Entidades do domínio (Note) |
 | **DTOs** | Objetos de transferência de dados (CreateNoteDto, UpdateNoteDto, etc.) |
 
@@ -103,7 +104,7 @@ cp appsettings.json.example appsettings.json
 # Editar: ConnectionStrings:DefaultConnection
 
 # 4. Instalar dependências
-dotnet restore
+dotnet restore NotesApp.sln
 
 # 5. Aplicar migrações
 dotnet ef database update
@@ -112,7 +113,7 @@ dotnet ef database update
 dotnet run
 
 # 7. Acessar Swagger
-http://localhost:5000/swagger
+http://localhost:5216/swagger
 ```
 
 ### Variáveis de Ambiente
@@ -139,55 +140,47 @@ http://localhost:5000/swagger
 ### Rodar Testes
 
 ```bash
-# Todos os testes
-dotnet test
+# Todos os testes (a raiz tem a solution e o projeto da API, então informe a solution)
+dotnet test NotesApp.sln
 
 # Com detalhes
-dotnet test --verbosity normal
+dotnet test NotesApp.sln --verbosity normal
 
 # Com code coverage
-dotnet test --collect:"XPlat Code Coverage"
+dotnet test NotesApp.sln --collect:"XPlat Code Coverage"
 
 # Apenas NoteServiceTests
-dotnet test --filter "FullyQualifiedName~NoteServiceTests"
+dotnet test NotesApp.sln --filter "FullyQualifiedName~NoteServiceTests"
 ```
-
-### Cobertura
-
-| Classe | Coverage |
-|--------|----------|
-| NoteService | 85% |
-| NotesController | 80% |
-| NoteRepository | 75% |
 
 ### Estrutura de Testes
 
+Os testes ficam em um projeto separado, `NotesApp.Api.Tests`:
+
 ```
-Tests/
-└── NoteServiceTests.cs
-    ├── CreateAsync Tests (3)
-    ├── GetByIdAsync Tests (2)
-    ├── UpdateAsync Tests (2)
-    ├── DeleteAsync Tests (2)
-    ├── GetFilteredAsync Tests (2)
-    ├── GetDistinctFoldersAsync Tests (1)
-    └── GetDistinctTagsAsync Tests (1)
+NotesApp.Api.Tests/
+├── NoteServiceTests.cs                 # regras de negócio (repositório mockado)
+├── NoteMapperTests.cs                  # mapeamento DTO <-> entidade
+├── ExceptionHandlingMiddlewareTests.cs # tradução de exceções em HTTP
+└── NoteRepositoryQueryTests.cs         # traduzibilidade das queries para SQL do Npgsql
 ```
+
 ---
 
 ### Endpoints
 
-| Método | Endpoint | Descrição | 
+| Método | Endpoint | Descrição |
 |--------|----------|-----------|
-| `GET` | `/health` | Health check |
-| `GET` | `/notes` | Listar todas as notas |
-| `GET` | `/notes/{id}` | Buscar nota por ID |
-| `POST` | `/notes` | Criar nova nota |
-| `PUT` | `/notes/{id}` | Atualizar nota (o `id` vem só da rota; não enviar no body) |
-| `DELETE` | `/notes/{id}` | Excluir nota |
-| `GET` | `/notes/folders` | Listar pastas únicas |
-| `GET` | `/notes/tags` | Listar tags únicas |
-| `GET` | `/notes/filter?folder=X&tag=Y` | Filtrar notas |
+| `GET` | `/api/health` | Health check |
+| `GET` | `/api/notes` | Listar notas (filtros opcionais: `?folder=X&tag=Y`) |
+| `GET` | `/api/notes/{id}` | Buscar nota por ID |
+| `POST` | `/api/notes` | Criar nova nota |
+| `PUT` | `/api/notes/{id}` | Atualizar nota (o `id` vem só da rota; não enviar no body) |
+| `DELETE` | `/api/notes/{id}` | Excluir nota |
+| `GET` | `/api/notes/folders` | Listar pastas únicas |
+| `GET` | `/api/notes/tags` | Listar tags únicas |
+
+Fixar/desafixar uma nota é feito alterando `isPinned` no `PUT`.
 
 ### Exemplo de Request/Response
 
@@ -225,23 +218,8 @@ Tests/
 
 ### Backend (Render)
 
-```yaml
-# Dockerfile
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
-WORKDIR /app
-EXPOSE 8080
-
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
-WORKDIR /src
-COPY . .
-RUN dotnet restore
-RUN dotnet publish -c Release -o /app/publish
-
-FROM base AS final
-WORKDIR /app
-COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "NotesApp.Api.dll"]
-```
+O deploy usa o `Dockerfile` da raiz do repositório (build multi-stage com as imagens `dotnet/sdk:10.0` e `dotnet/aspnet:10.0`).
+O `.dockerignore` mantém testes, `bin/obj` e arquivos de configuração local fora da imagem.
 
 ### Variáveis de Ambiente (Render)
 
@@ -269,7 +247,7 @@ ENTRYPOINT ["dotnet", "NotesApp.Api.dll"]
 | **.gitignore** | appsettings.json, bin/, obj/ ignorados |
 | **Variáveis de Ambiente** | Credenciais no Render, não no código |
 | **CORS** | Apenas origens listadas em `Cors:AllowedOrigins` (padrão: localhost:5173) |
-| **HTTPS** | Forçado em produção |
+| **HTTPS** | Terminado pelo Render em produção; o redirecionamento da aplicação só roda em Development |
 | **Validações** | DataAnnotations + validação manual no Service |
 | **SQL Injection** | Previno com EF Core (parameterized queries) |
 
@@ -283,13 +261,6 @@ ENTRYPOINT ["dotnet", "NotesApp.Api.dll"]
 ```
 
 ---
-
-### Otimizações
-
-- ✅ Índices no banco (IsPinned, CreatedAt, Folder)
-- ✅ Query optimization com EF Core
-- ✅ Connection pooling (Neon)
-- ✅ Response compression
 
 ---
 

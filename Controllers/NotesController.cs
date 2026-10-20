@@ -1,6 +1,6 @@
-﻿using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
 using NotesApp.Api.DTOs;
+using NotesApp.Api.Mappers;
 using NotesApp.Api.Services;
 
 namespace NotesApp.Api.Controllers;
@@ -11,12 +11,10 @@ namespace NotesApp.Api.Controllers;
 public class NotesController : ControllerBase
 {
     private readonly INoteService _noteService;
-    private readonly IMapper _mapper;
 
-    public NotesController(INoteService noteService, IMapper mapper)
+    public NotesController(INoteService noteService)
     {
         _noteService = noteService;
-        _mapper = mapper;
     }
 
     [HttpGet]
@@ -25,7 +23,7 @@ public class NotesController : ControllerBase
         [FromQuery] string? tag)
     {
         var notes = await _noteService.GetFilteredAsync(folder, tag);
-        var response = _mapper.Map<List<NoteResponseDto>>(notes);
+        var response = notes.Select(n => n.ToResponse()).ToList();
         return Ok(ApiResponseDto<IEnumerable<NoteResponseDto>>.Ok(response));
     }
 
@@ -33,7 +31,7 @@ public class NotesController : ControllerBase
     public async Task<ActionResult<ApiResponseDto<NoteResponseDto>>> GetById(int id)
     {
         var note = await _noteService.GetByIdAsync(id);
-        var response = _mapper.Map<NoteResponseDto>(note);
+        var response = note.ToResponse();
         return Ok(ApiResponseDto<NoteResponseDto>.Ok(response));
     }
 
@@ -41,7 +39,7 @@ public class NotesController : ControllerBase
     public async Task<ActionResult<ApiResponseDto<NoteResponseDto>>> Create([FromBody] CreateNoteDto dto)
     {
         var createdNote = await _noteService.CreateAsync(dto);
-        var response = _mapper.Map<NoteResponseDto>(createdNote);
+        var response = createdNote.ToResponse();
 
         return CreatedAtAction(
             nameof(GetById),
@@ -53,7 +51,7 @@ public class NotesController : ControllerBase
     public async Task<ActionResult<ApiResponseDto<NoteResponseDto>>> Update(int id, [FromBody] UpdateNoteDto dto)
     {
         var updatedNote = await _noteService.UpdateAsync(id, dto);
-        var response = _mapper.Map<NoteResponseDto>(updatedNote);
+        var response = updatedNote.ToResponse();
 
         return Ok(ApiResponseDto<NoteResponseDto>.Ok(response, "Nota atualizada com sucesso"));
     }

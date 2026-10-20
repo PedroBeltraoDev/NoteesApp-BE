@@ -1,9 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using NotesApp.Api.Data;
 using NotesApp.Api.DTOs;
-using NotesApp.Api.Mappers;
 using NotesApp.Api.Middleware;
 using NotesApp.Api.Repositories;
 using NotesApp.Api.Services;
@@ -43,7 +42,6 @@ builder.Services.AddSwaggerGen(c =>
 
 builder.Services.AddScoped<INoteRepository, NoteRepository>();
 builder.Services.AddScoped<INoteService, NoteService>();
-builder.Services.AddAutoMapper(typeof(MappingProfile));
 
 // Entity Framework
 builder.Services.AddDbContext<AppDbContext>(options =>
