@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
 using NotesApp.Api.Data;
 using NotesApp.Api.DTOs;
+using NotesApp.Api.Health;
 using NotesApp.Api.Middleware;
 using NotesApp.Api.Repositories;
 using NotesApp.Api.Services;
@@ -39,6 +40,9 @@ builder.Services.AddSwaggerGen(c =>
         Description = "API RESTful para gerenciamento de notas"
     });
 });
+
+builder.Services.AddHealthChecks()
+    .AddCheck<DatabaseHealthCheck>("database");
 
 builder.Services.AddScoped<INoteRepository, NoteRepository>();
 builder.Services.AddScoped<INoteService, NoteService>();
@@ -86,3 +90,6 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+// Necessário para os testes de integração (WebApplicationFactory<Program>)
+public partial class Program;

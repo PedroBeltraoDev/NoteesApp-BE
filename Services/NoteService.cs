@@ -43,13 +43,28 @@ public class NoteService : INoteService
     {
         _logger.LogInformation("Filtrando notas - Pasta: {Folder}, Tag: {Tag}", folder, tag);
         
-        folder = folder?.Trim();
-        tag = tag?.Trim();
+        folder = NormalizeFilter(folder);
+        tag = NormalizeFilter(tag);
 
-        if (string.IsNullOrEmpty(folder) && string.IsNullOrEmpty(tag))
+        if (folder is null && tag is null)
             return await GetAllAsync();
 
         return await _repository.GetFilteredAsync(folder, tag);
+    }
+
+    public async Task<PagedResult<Note>> GetPagedAsync(string? folder, string? tag, int page, int pageSize)
+    {
+        _logger.LogInformation(
+            "Listando notas paginadas - Pasta: {Folder}, Tag: {Tag}, Página: {Page}, Tamanho: {PageSize}",
+            folder, tag, page, pageSize);
+        
+        if (page < 1)
+            throw new ArgumentException("Página deve ser maior ou igual a 1");
+        
+        if (pageSize < 1 || pageSize > MaxPageSize)
+            throw new ArgumentException($"Tamanho da página deve estar entre 1 e {MaxPageSize}");
+        
+        return await _repository.GetPagedAsync(NormalizeFilter(folder), NormalizeFilter(tag), page, pageSize);
     }
 
     public async Task<Note> CreateAsync(CreateNoteDto dto)
@@ -105,6 +120,8 @@ public class NoteService : INoteService
         return await _repository.GetDistinctTagsAsync();
     }
     
+    public const int MaxPageSize = 100;
+    
     private const int MaxFolderLength = 100;
     private const int MaxTags = 20;
     private const int MaxTagLength = 50;
@@ -138,6 +155,12 @@ public class NoteService : INoteService
             throw new ArgumentException($"Cada tag deve ter no máximo {MaxTagLength} caracteres");
     }
 
+    private static string? NormalizeFilter(string? value)
+    {
+        var trimmed = value?.Trim();
+        return string.IsNullOrEmpty(trimmed) ? null : trimmed;
+    }
+    
     private static string? NormalizeFolder(string? folder)
     {
         var trimmed = folder?.Trim();

@@ -1,4 +1,4 @@
-﻿namespace NotesApp.Api.DTOs;
+namespace NotesApp.Api.DTOs;
 
 public class ApiResponseDto<T>
 {
@@ -6,10 +6,14 @@ public class ApiResponseDto<T>
     public string Message { get; set; } = string.Empty;
     public T? Data { get; set; }
     public IDictionary<string, string[]>? Errors { get; set; }
+    public PaginationDto? Pagination { get; set; }
 
     public static ApiResponseDto<T> Ok(T data, string message = "Operação realizada com sucesso")
         => new() { Success = true, Data = data, Message = message };
 
+    public static ApiResponseDto<T> Ok(T data, PaginationDto pagination, string message = "Operação realizada com sucesso")
+        => new() { Success = true, Data = data, Message = message, Pagination = pagination };
+    
     public static ApiResponseDto<T> Fail(string message, IDictionary<string, string[]>? errors = null)
         => new() { Success = false, Message = message, Errors = errors };
 }
