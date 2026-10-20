@@ -1,54 +1,40 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Claims;
+using System.Text;
 using System.Text.Json;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.JsonWebTokens;
+using Microsoft.IdentityModel.Tokens;
 using Moq;
 using NotesApp.Api.Models;
-using NotesApp.Api.Services;
 using Xunit;
 
 namespace NotesApp.Api.Tests;
 
-// Sobe a API de verdade (pipeline, validação, middleware) com o INoteService substituído por um mock.
-// A connection string aponta para uma porta fechada: serve para provar o 503 do readiness.
-public class ApiIntegrationTests : IClassFixture<ApiIntegrationTests.TestApiFactory>
+// Sobe a API de verdade (pipeline, validação, JWT, middleware) com o INoteService substituído por um mock.
+public class ApiIntegrationTests : IClassFixture<MockedServiceApiFactory>
 {
-    public class TestApiFactory : WebApplicationFactory<Program>
-    {
-        public Mock<INoteService> NoteService { get; } = new();
+    private static readonly Guid UserId = Guid.NewGuid();
 
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            builder.UseEnvironment("Testing");
-            builder.UseSetting("ConnectionStrings:DefaultConnection",
-                "Host=127.0.0.1;Port=1;Database=x;Username=u;Password=p;Timeout=2");
-
-            builder.ConfigureServices(services =>
-            {
-                services.AddScoped(_ => NoteService.Object);
-            });
-        }
-    }
-
-    private readonly TestApiFactory _factory;
+    private readonly MockedServiceApiFactory _factory;
     private readonly HttpClient _client;
 
-    public ApiIntegrationTests(TestApiFactory factory)
+    public ApiIntegrationTests(MockedServiceApiFactory factory)
     {
         _factory = factory;
-        _client = factory.CreateClient();
+        _client = factory.CreateClientFor(UserId);
         _factory.NoteService.Reset();
     }
 
     private static async Task<JsonElement> ReadJsonAsync(HttpResponseMessage response)
         => await response.Content.ReadFromJsonAsync<JsonElement>();
 
+    // ---------- Listagem / paginação
+
     [Fact]
     public async Task GetNotes_WithoutPaginationParameters_ReturnsEverythingWithoutPagination()
     {
-        _factory.NoteService.Setup(s => s.GetFilteredAsync(null, null))
+        _factory.NoteService.Setup(s => s.GetFilteredAsync(UserId, null, null))
             .ReturnsAsync(new List<Note> { new() { Id = 1, Title = "A" }, new() { Id = 2, Title = "B" } });
 
         var response = await _client.GetAsync("/api/notes");
@@ -62,7 +48,7 @@ public class ApiIntegrationTests : IClassFixture<ApiIntegrationTests.TestApiFact
     [Fact]
     public async Task GetNotes_WithPageAndPageSize_ReturnsPageAndPaginationMetadata()
     {
-        _factory.NoteService.Setup(s => s.GetPagedAsync("Trabalho", "urgente", 2, 5))
+        _factory.NoteService.Setup(s => s.GetPagedAsync(UserId, "Trabalho", "urgente", 2, 5))
             .ReturnsAsync(new PagedResult<Note>([new Note { Id = 6, Title = "F" }], 11));
 
         var response = await _client.GetAsync("/api/notes?folder=Trabalho&tag=urgente&page=2&pageSize=5");
@@ -80,7 +66,7 @@ public class ApiIntegrationTests : IClassFixture<ApiIntegrationTests.TestApiFact
     [Fact]
     public async Task GetNotes_WithOnlyPageSize_DefaultsToFirstPage()
     {
-        _factory.NoteService.Setup(s => s.GetPagedAsync(null, null, 1, 10))
+        _factory.NoteService.Setup(s => s.GetPagedAsync(UserId, null, null, 1, 10))
             .ReturnsAsync(new PagedResult<Note>([], 0));
 
         var response = await _client.GetAsync("/api/notes?pageSize=10");
@@ -107,9 +93,115 @@ public class ApiIntegrationTests : IClassFixture<ApiIntegrationTests.TestApiFact
     }
 
     [Fact]
-    public async Task Health_Liveness_DoesNotTouchTheDatabase()
+    public async Task UnknownNote_Returns404InApiFormat()
     {
-        var response = await _client.GetAsync("/api/health");
+        _factory.NoteService.Setup(s => s.GetByIdAsync(UserId, 99)).ThrowsAsync(new KeyNotFoundException());
+
+        var response = await _client.GetAsync("/api/notes/99");
+        var body = await ReadJsonAsync(response);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.False(body.GetProperty("success").GetBoolean());
+    }
+
+    // ---------- Autenticação nas rotas de notas
+
+    [Theory]
+    [InlineData("GET", "/api/notes")]
+    [InlineData("GET", "/api/notes/1")]
+    [InlineData("POST", "/api/notes")]
+    [InlineData("PUT", "/api/notes/1")]
+    [InlineData("DELETE", "/api/notes/1")]
+    [InlineData("GET", "/api/notes/folders")]
+    [InlineData("GET", "/api/notes/tags")]
+    [InlineData("GET", "/api/auth/me")]
+    public async Task ProtectedRoutes_WithoutToken_Return401InApiFormat(string method, string url)
+    {
+        var anonymous = _factory.CreateClient();
+
+        var response = await anonymous.SendAsync(new HttpRequestMessage(new HttpMethod(method), url));
+        var body = await ReadJsonAsync(response);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.False(body.GetProperty("success").GetBoolean());
+        _factory.NoteService.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task ProtectedRoute_WithGarbageToken_Returns401()
+    {
+        var client = _factory.CreateClient().WithBearer("isto-nao-e-um-jwt");
+
+        var response = await client.GetAsync("/api/notes");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ProtectedRoute_WithTokenSignedByAnotherKey_Returns401()
+    {
+        var token = CreateToken(key: "outra-chave-completamente-diferente-0123456789ab");
+
+        var response = await _factory.CreateClient().WithBearer(token).GetAsync("/api/notes");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ProtectedRoute_WithExpiredToken_Returns401AndSaysItExpired()
+    {
+        var token = CreateToken(lifetime: TimeSpan.FromMinutes(-10));
+
+        var response = await _factory.CreateClient().WithBearer(token).GetAsync("/api/notes");
+        var body = await ReadJsonAsync(response);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("Token expirado", body.GetProperty("message").GetString());
+    }
+
+    [Theory]
+    [InlineData("issuer-errado", TestJwt.Audience)]
+    [InlineData(TestJwt.Issuer, "audience-errada")]
+    public async Task ProtectedRoute_WithWrongIssuerOrAudience_Returns401(string issuer, string audience)
+    {
+        var token = CreateToken(issuer: issuer, audience: audience);
+
+        var response = await _factory.CreateClient().WithBearer(token).GetAsync("/api/notes");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ProtectedRoute_WithTokenWithoutSubject_Returns401()
+    {
+        var token = CreateToken(subject: null);
+        _factory.NoteService.Setup(s => s.GetFilteredAsync(It.IsAny<Guid>(), null, null))
+            .ReturnsAsync(new List<Note>());
+
+        var response = await _factory.CreateClient().WithBearer(token).GetAsync("/api/notes");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Handler_ReceivesTheUserIdFromTheTokenSubject()
+    {
+        var someoneElse = Guid.NewGuid();
+        _factory.NoteService.Setup(s => s.GetFilteredAsync(someoneElse, null, null))
+            .ReturnsAsync(new List<Note>());
+
+        var response = await _factory.CreateClientFor(someoneElse).GetAsync("/api/notes");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        _factory.NoteService.Verify(s => s.GetFilteredAsync(someoneElse, null, null), Times.Once);
+    }
+
+    // ---------- Health
+
+    [Fact]
+    public async Task Health_Liveness_IsPublicAndDoesNotTouchTheDatabase()
+    {
+        var response = await _factory.CreateClient().GetAsync("/api/health");
         var body = await ReadJsonAsync(response);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -119,7 +211,7 @@ public class ApiIntegrationTests : IClassFixture<ApiIntegrationTests.TestApiFact
     [Fact]
     public async Task Health_Ready_WhenDatabaseIsUnreachable_Returns503()
     {
-        var response = await _client.GetAsync("/api/health/ready");
+        var response = await _factory.CreateClient().GetAsync("/api/health/ready");
         var body = await ReadJsonAsync(response);
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
@@ -127,15 +219,32 @@ public class ApiIntegrationTests : IClassFixture<ApiIntegrationTests.TestApiFact
         Assert.Equal("unhealthy", body.GetProperty("checks").GetProperty("database").GetProperty("status").GetString());
     }
 
-    [Fact]
-    public async Task UnknownNote_Returns404InApiFormat()
+    // ---------- Util
+
+    private static string CreateToken(
+        string key = TestJwt.Key,
+        string issuer = TestJwt.Issuer,
+        string audience = TestJwt.Audience,
+        TimeSpan? lifetime = null,
+        string? subject = "")
     {
-        _factory.NoteService.Setup(s => s.GetByIdAsync(99)).ThrowsAsync(new KeyNotFoundException());
+        var now = DateTime.UtcNow;
+        var expires = now.Add(lifetime ?? TimeSpan.FromMinutes(5));
+        var claims = new List<Claim>();
 
-        var response = await _client.GetAsync("/api/notes/99");
-        var body = await ReadJsonAsync(response);
+        if (subject is not null)
+            claims.Add(new Claim("sub", subject == "" ? Guid.NewGuid().ToString() : subject));
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        Assert.False(body.GetProperty("success").GetBoolean());
+        return new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
+        {
+            Subject = new ClaimsIdentity(claims),
+            Issuer = issuer,
+            Audience = audience,
+            // NotBefore sempre antes de Expires, mesmo quando o token já nasce vencido
+            NotBefore = (expires < now ? expires : now).AddMinutes(-20),
+            Expires = expires,
+            SigningCredentials = new SigningCredentials(
+                new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)), SecurityAlgorithms.HmacSha256)
+        });
     }
 }

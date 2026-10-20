@@ -13,23 +13,24 @@ public class NoteRepository : INoteRepository
         _context = context;
     }
     
-    public async Task<IEnumerable<Note>> GetAllAsync()
+    public async Task<IEnumerable<Note>> GetAllAsync(Guid userId)
     {
         return await _context.Notes
+            .Where(n => n.UserId == userId)
             .OrderByDescending(n => n.IsPinned)
             .ThenByDescending(n => n.CreatedAt)
             .ThenByDescending(n => n.Id)
             .ToListAsync();
     }
     
-    public async Task<Note?> GetByIdAsync(int id)
+    public async Task<Note?> GetByIdAsync(Guid userId, int id)
     {
-        return await _context.Notes.FindAsync(id);
+        return await _context.Notes.FirstOrDefaultAsync(n => n.Id == id && n.UserId == userId);
     }
     
-    internal IQueryable<Note> BuildFilteredQuery(string? folder, string? tag)
+    internal IQueryable<Note> BuildFilteredQuery(Guid userId, string? folder, string? tag)
     {
-        var query = _context.Notes.AsQueryable();
+        var query = _context.Notes.Where(n => n.UserId == userId);
 
         if (!string.IsNullOrEmpty(folder))
         {
@@ -50,14 +51,14 @@ public class NoteRepository : INoteRepository
             .ThenByDescending(n => n.Id);
     }
 
-    public async Task<IEnumerable<Note>> GetFilteredAsync(string? folder, string? tag)
+    public async Task<IEnumerable<Note>> GetFilteredAsync(Guid userId, string? folder, string? tag)
     {
-        return await BuildFilteredQuery(folder, tag).ToListAsync();
+        return await BuildFilteredQuery(userId, folder, tag).ToListAsync();
     }
     
-    public async Task<PagedResult<Note>> GetPagedAsync(string? folder, string? tag, int page, int pageSize)
+    public async Task<PagedResult<Note>> GetPagedAsync(Guid userId, string? folder, string? tag, int page, int pageSize)
     {
-        var query = BuildFilteredQuery(folder, tag);
+        var query = BuildFilteredQuery(userId, folder, tag);
         
         var total = await query.CountAsync();
         var items = await query
@@ -81,9 +82,9 @@ public class NoteRepository : INoteRepository
         await _context.SaveChangesAsync();
     }
     
-    public async Task DeleteAsync(int id)
+    public async Task DeleteAsync(Guid userId, int id)
     {
-        var note = await _context.Notes.FindAsync(id);
+        var note = await _context.Notes.FirstOrDefaultAsync(n => n.Id == id && n.UserId == userId);
         if (note != null)
         {
             _context.Notes.Remove(note);
@@ -91,21 +92,22 @@ public class NoteRepository : INoteRepository
         }
     }
     
-    public async Task<IEnumerable<string>> GetDistinctFoldersAsync()
+    public async Task<IEnumerable<string>> GetDistinctFoldersAsync(Guid userId)
     {
         return await _context.Notes
-            .Where(n => !string.IsNullOrWhiteSpace(n.Folder))
+            .Where(n => n.UserId == userId && !string.IsNullOrWhiteSpace(n.Folder))
             .Select(n => n.Folder!)
             .Distinct()
             .OrderBy(f => f)
             .ToListAsync();
     }
     
-    internal IQueryable<string> BuildDistinctTagsQuery()
+    internal IQueryable<string> BuildDistinctTagsQuery(Guid userId)
     {
         // unnest no banco; tags que só diferem por maiúsculas/minúsculas viram uma só
         // (mantém a grafia "menor" na ordenação, ex.: "Importante" antes de "importante")
         return _context.Notes
+            .Where(n => n.UserId == userId)
             .SelectMany(n => n.Tags)
             .Where(t => t.Trim() != "")
             .GroupBy(t => t.Trim().ToLower())
@@ -113,8 +115,8 @@ public class NoteRepository : INoteRepository
             .OrderBy(t => t.ToLower());
     }
     
-    public async Task<IEnumerable<string>> GetDistinctTagsAsync()
+    public async Task<IEnumerable<string>> GetDistinctTagsAsync(Guid userId)
     {
-        return await BuildDistinctTagsQuery().ToListAsync();
+        return await BuildDistinctTagsQuery(userId).ToListAsync();
     }
 }

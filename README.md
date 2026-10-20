@@ -19,6 +19,8 @@ API RESTful para gerenciamento de notas com organização por pastas e tags, des
 
 ## ✨ Funcionalidades
 
+- ✅ **Autenticação própria com JWT**: cadastro, login, refresh token com rotação e logout
+- ✅ **Notas por usuário**: cada pessoa só enxerga e altera as próprias notas
 - ✅ **CRUD Completo** de notas (Criar, Ler, Atualizar, Deletar)
 - ✅ **Organização por Pastas** e Tags
 - ✅ **Notas Fixadas** (pin/unpin)
@@ -135,9 +137,22 @@ http://localhost:5216/swagger
       "Microsoft.AspNetCore": "Warning"
     }
   },
+  "Jwt": {
+    "Key": "uma-chave-aleatoria-com-no-minimo-32-caracteres",
+    "AccessTokenMinutes": 15,
+    "RefreshTokenDays": 14
+  },
   "AllowedHosts": "*"
 }
 ```
+
+> **`Jwt:Key` é obrigatória**: sem ela (ou com menos de 32 caracteres) a API **não sobe**. Gere uma com
+> `openssl rand -base64 48` (ou `python -c "import secrets; print(secrets.token_urlsafe(48))"`).
+> Em produção ela vem da variável `Jwt__Key`, nunca do repositório.
+
+> **Migration `AddUsersAndNoteOwnership` apaga as notas existentes.** As notas antigas não têm dono,
+> então a migration executa `DELETE FROM "Notes"` antes de criar `Notes.UserId` (NOT NULL). Não há como
+> desfazer. Aplique primeiro em uma *branch* do Neon (ou faça backup) se houver algo a preservar.
 
 ---
 
@@ -165,29 +180,74 @@ Os testes ficam em um projeto separado, `NotesApp.Api.Tests`:
 
 ```
 NotesApp.Api.Tests/
-├── NoteServiceTests.cs                 # regras de negócio (repositório mockado)
+├── NoteServiceTests.cs                 # regras de negócio e isolamento entre usuários (repositório mockado)
+├── AuthServiceTests.cs                 # registro, login, refresh (rotação/reuso) e logout (repositório mockado)
+├── TokenServiceTests.cs                # JWT (claims, expiração, algoritmo) e hash do refresh token
 ├── NoteMapperTests.cs                  # mapeamento DTO <-> entidade
 ├── ExceptionHandlingMiddlewareTests.cs # tradução de exceções em HTTP
-└── NoteRepositoryQueryTests.cs         # traduzibilidade das queries para SQL do Npgsql
+├── NoteRepositoryQueryTests.cs         # SQL gerado para o Npgsql (filtro por dono, tags, paginação)
+├── ApiIntegrationTests.cs              # API real: 401 sem/ com token inválido, paginação, health
+├── AuthFlowTests.cs                    # API real + banco em memória: fluxo de auth e isolamento de notas
+└── TestHosts.cs                        # fábricas de host de teste
 ```
 
 ---
 
 ### Endpoints
 
-| Método | Endpoint | Descrição |
-|--------|----------|-----------|
-| `GET` | `/api/health` | Liveness: o processo está de pé (não acessa o banco) |
-| `GET` | `/api/health/ready` | Readiness: verifica o banco; responde `503` se estiver inacessível |
-| `GET` | `/api/notes` | Listar notas (filtros opcionais: `?folder=X&tag=Y`; paginação opcional: `?page=1&pageSize=20`) |
-| `GET` | `/api/notes/{id}` | Buscar nota por ID |
-| `POST` | `/api/notes` | Criar nova nota |
-| `PUT` | `/api/notes/{id}` | Atualizar nota (o `id` vem só da rota; não enviar no body) |
-| `DELETE` | `/api/notes/{id}` | Excluir nota |
-| `GET` | `/api/notes/folders` | Listar pastas únicas |
-| `GET` | `/api/notes/tags` | Listar tags únicas |
+Todas as rotas de `/api/notes` e `/api/auth/me` exigem o header `Authorization: Bearer <accessToken>`.
+
+| Método | Endpoint | Auth | Descrição |
+|--------|----------|------|-----------|
+| `POST` | `/api/auth/register` | não | Cria a conta e já devolve os tokens (`201`; `409` se o e-mail já existe) |
+| `POST` | `/api/auth/login` | não | Devolve os tokens (`401` para e-mail/senha inválidos) |
+| `POST` | `/api/auth/refresh` | não | Troca o refresh token por um novo par de tokens |
+| `POST` | `/api/auth/logout` | não | Revoga o refresh token informado |
+| `GET` | `/api/auth/me` | sim | Dados do usuário autenticado |
+| `GET` | `/api/health` | não | Liveness: o processo está de pé (não acessa o banco) |
+| `GET` | `/api/health/ready` | não | Readiness: verifica o banco; responde `503` se estiver inacessível |
+| `GET` | `/api/notes` | sim | Listar notas (filtros opcionais: `?folder=X&tag=Y`; paginação opcional: `?page=1&pageSize=20`) |
+| `GET` | `/api/notes/{id}` | sim | Buscar nota por ID |
+| `POST` | `/api/notes` | sim | Criar nova nota |
+| `PUT` | `/api/notes/{id}` | sim | Atualizar nota (o `id` vem só da rota; não enviar no body) |
+| `DELETE` | `/api/notes/{id}` | sim | Excluir nota |
+| `GET` | `/api/notes/folders` | sim | Listar pastas únicas (só do usuário) |
+| `GET` | `/api/notes/tags` | sim | Listar tags únicas (só do usuário) |
 
 Fixar/desafixar uma nota é feito alterando `isPinned` no `PUT`.
+
+### Autenticação
+
+Fluxo para o frontend:
+
+1. `POST /api/auth/register` ou `POST /api/auth/login` com `{ "email", "password" }` (senha de 8 a 128 caracteres).
+   A resposta traz `data` com:
+   ```json
+   {
+     "accessToken": "eyJ...",              // JWT, vale 15 min; vai em Authorization: Bearer
+     "accessTokenExpiresAt": "2026-10-20T12:15:00Z",
+     "refreshToken": "…",                  // opaco, vale 14 dias, uso único
+     "refreshTokenExpiresAt": "2026-11-03T12:00:00Z",
+     "user": { "id": "…", "email": "pessoa@exemplo.com" }
+   }
+   ```
+2. Envie `Authorization: Bearer <accessToken>` em toda chamada a `/api/notes/*`.
+3. Ao receber `401` (mensagem `Token expirado`), chame `POST /api/auth/refresh` com `{ "refreshToken" }`.
+   A resposta é um **novo par de tokens**: guarde o novo `refreshToken`, o anterior deixa de valer.
+4. Se o refresh também falhar com `401`, a sessão acabou: volte para a tela de login.
+5. No logout, chame `POST /api/auth/logout` com `{ "refreshToken" }` e apague os tokens locais.
+
+Regras importantes:
+
+- **Dono das notas**: vem sempre do token. Qualquer `userId` enviado no corpo é ignorado. Nota de outro usuário
+  responde `404` (não `403`), como se não existisse.
+- **Reuso de refresh token**: apresentar de novo um refresh token já usado é tratado como roubo e **revoga todas
+  as sessões** do usuário. Por isso o frontend deve evitar dois refreshes simultâneos com o mesmo token
+  (ex.: duas abas): serialize a renovação.
+- **Senhas** são guardadas com PBKDF2 (`PasswordHasher` do ASP.NET Core); refresh tokens ficam no banco só como hash SHA-256.
+- **Limite de tentativas**: `register`, `login`, `refresh` e `logout` aceitam 10 requisições por minuto por IP
+  (`RateLimiting:AuthPermitLimit`); acima disso a resposta é `429`.
+- **Erros** seguem o formato `{ "success": false, "message": "…", "errors": { campo: [mensagens] } }`.
 
 ### Paginação
 
@@ -253,6 +313,7 @@ O `.dockerignore` mantém testes, `bin/obj` e arquivos de configuração local f
 |----------|-------|
 | `ASPNETCORE_ENVIRONMENT` | Production |
 | `ConnectionStrings__DefaultConnection` | (string do Neon) |
+| `Jwt__Key` | **Obrigatória.** Chave aleatória de no mínimo 32 caracteres. A API não sobe sem ela. Trocá-la derruba todas as sessões |
 | `ENABLE_SWAGGER` | true (opcional; Swagger só fica ativo em Development ou com esta variável) |
 | `Cors__AllowedOrigins__0` | URL do frontend (ex.: `https://seu-app.vercel.app`). Sem isso, só `http://localhost:5173` é aceito |
 
@@ -270,6 +331,10 @@ O `.dockerignore` mantém testes, `bin/obj` e arquivos de configuração local f
 
 | Medida | Descrição |
 |--------|-----------|
+| **Autenticação** | JWT HS256 de curta duração (15 min), validando emissor, audiência, assinatura e expiração; refresh token com rotação e detecção de reuso |
+| **Senhas** | PBKDF2 via `PasswordHasher`; mensagem única para e-mail/senha inválidos e verificação de hash também para e-mail inexistente (sem diferença de tempo) |
+| **Isolamento** | Toda consulta filtra por `UserId` vindo do token; nota alheia responde `404` |
+| **Rate limit** | Endpoints de `/api/auth` limitados por IP (429), usando o IP real via `X-Forwarded-For` do Render |
 | **.gitignore** | appsettings.json, bin/, obj/ ignorados |
 | **Variáveis de Ambiente** | Credenciais no Render, não no código |
 | **CORS** | Apenas origens listadas em `Cors:AllowedOrigins` (padrão: localhost:5173) |

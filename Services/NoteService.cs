@@ -18,11 +18,11 @@ public class NoteService : INoteService
         _logger = logger;
     }
 
-    public async Task<Note> GetByIdAsync(int id)
+    public async Task<Note> GetByIdAsync(Guid userId, int id)
     {
         _logger.LogInformation("Buscando nota com ID {NoteId}", id);
         
-        var note = await _repository.GetByIdAsync(id);
+        var note = await _repository.GetByIdAsync(userId, id);
         
         if (note == null)
         {
@@ -33,13 +33,13 @@ public class NoteService : INoteService
         return note;
     }
 
-    public async Task<IEnumerable<Note>> GetAllAsync()
+    public async Task<IEnumerable<Note>> GetAllAsync(Guid userId)
     {
         _logger.LogInformation("Buscando todas as notas");
-        return await _repository.GetAllAsync();
+        return await _repository.GetAllAsync(userId);
     }
 
-    public async Task<IEnumerable<Note>> GetFilteredAsync(string? folder, string? tag)
+    public async Task<IEnumerable<Note>> GetFilteredAsync(Guid userId, string? folder, string? tag)
     {
         _logger.LogInformation("Filtrando notas - Pasta: {Folder}, Tag: {Tag}", folder, tag);
         
@@ -47,12 +47,12 @@ public class NoteService : INoteService
         tag = NormalizeFilter(tag);
 
         if (folder is null && tag is null)
-            return await GetAllAsync();
+            return await GetAllAsync(userId);
 
-        return await _repository.GetFilteredAsync(folder, tag);
+        return await _repository.GetFilteredAsync(userId, folder, tag);
     }
 
-    public async Task<PagedResult<Note>> GetPagedAsync(string? folder, string? tag, int page, int pageSize)
+    public async Task<PagedResult<Note>> GetPagedAsync(Guid userId, string? folder, string? tag, int page, int pageSize)
     {
         _logger.LogInformation(
             "Listando notas paginadas - Pasta: {Folder}, Tag: {Tag}, Página: {Page}, Tamanho: {PageSize}",
@@ -64,10 +64,10 @@ public class NoteService : INoteService
         if (pageSize < 1 || pageSize > MaxPageSize)
             throw new ArgumentException($"Tamanho da página deve estar entre 1 e {MaxPageSize}");
         
-        return await _repository.GetPagedAsync(NormalizeFilter(folder), NormalizeFilter(tag), page, pageSize);
+        return await _repository.GetPagedAsync(userId, NormalizeFilter(folder), NormalizeFilter(tag), page, pageSize);
     }
 
-    public async Task<Note> CreateAsync(CreateNoteDto dto)
+    public async Task<Note> CreateAsync(Guid userId, CreateNoteDto dto)
     {
         _logger.LogInformation("Criando nova nota: {Title}", dto.Title);
 
@@ -75,7 +75,7 @@ public class NoteService : INoteService
         dto.Folder = NormalizeFolder(dto.Folder);
         dto.Tags = NormalizeTags(dto.Tags);
 
-        var note = dto.ToEntity();
+        var note = dto.ToEntity(userId);
     
         var created = await _repository.CreateAsync(note);
     
@@ -83,11 +83,11 @@ public class NoteService : INoteService
         return created;
     }
 
-    public async Task<Note> UpdateAsync(int id, UpdateNoteDto dto)
+    public async Task<Note> UpdateAsync(Guid userId, int id, UpdateNoteDto dto)
     {
         _logger.LogInformation("Atualizando nota ID: {NoteId}", id);
 
-        var existing = await GetByIdAsync(id);
+        var existing = await GetByIdAsync(userId, id);
         ValidateNoteData(dto.Title, dto.Content, dto.Folder, dto.Tags);
         dto.Folder = NormalizeFolder(dto.Folder);
         dto.Tags = NormalizeTags(dto.Tags);
@@ -100,24 +100,24 @@ public class NoteService : INoteService
         return existing;
     }
 
-    public async Task DeleteAsync(int id)
+    public async Task DeleteAsync(Guid userId, int id)
     {
         _logger.LogInformation("Excluindo nota ID: {NoteId}", id);
         
-        await GetByIdAsync(id);
-        await _repository.DeleteAsync(id);
+        await GetByIdAsync(userId, id);
+        await _repository.DeleteAsync(userId, id);
         
         _logger.LogInformation("Nota excluída com sucesso - ID: {NoteId}", id);
     }
 
-    public async Task<IEnumerable<string>> GetDistinctFoldersAsync()
+    public async Task<IEnumerable<string>> GetDistinctFoldersAsync(Guid userId)
     {
-        return await _repository.GetDistinctFoldersAsync();
+        return await _repository.GetDistinctFoldersAsync(userId);
     }
 
-    public async Task<IEnumerable<string>> GetDistinctTagsAsync()
+    public async Task<IEnumerable<string>> GetDistinctTagsAsync(Guid userId)
     {
-        return await _repository.GetDistinctTagsAsync();
+        return await _repository.GetDistinctTagsAsync(userId);
     }
     
     public const int MaxPageSize = 100;

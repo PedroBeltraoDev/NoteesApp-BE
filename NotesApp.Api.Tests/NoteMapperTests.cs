@@ -7,6 +7,8 @@ namespace NotesApp.Api.Tests;
 
 public class NoteMapperTests
 {
+    private static readonly Guid OwnerId = Guid.NewGuid();
+
     [Fact]
     public void ToEntity_CopiesFieldsAndSetsTimestamps()
     {
@@ -20,9 +22,10 @@ public class NoteMapperTests
         };
 
         var before = DateTime.UtcNow;
-        var note = dto.ToEntity();
+        var note = dto.ToEntity(OwnerId);
 
         Assert.Equal(0, note.Id);
+        Assert.Equal(OwnerId, note.UserId);
         Assert.Equal("Título", note.Title);
         Assert.Equal("Conteúdo da nota", note.Content);
         Assert.Equal("Trabalho", note.Folder);
@@ -37,7 +40,7 @@ public class NoteMapperTests
     {
         var dto = new CreateNoteDto { Tags = ["a"] };
 
-        var note = dto.ToEntity();
+        var note = dto.ToEntity(OwnerId);
         dto.Tags.Add("b");
 
         Assert.Equal(["a"], note.Tags);

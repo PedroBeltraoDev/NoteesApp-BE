@@ -1,13 +1,17 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NotesApp.Api.DTOs;
+using NotesApp.Api.Extensions;
 using NotesApp.Api.Mappers;
 using NotesApp.Api.Services;
 
 namespace NotesApp.Api.Controllers;
 
 // Exceções (KeyNotFound, Argument, etc.) são traduzidas para HTTP pelo ExceptionHandlingMiddleware.
+// Todas as ações exigem JWT e só enxergam as notas do usuário autenticado.
 [ApiController]
+[Authorize]
 [Route("api/[controller]")]
 public class NotesController : ControllerBase
 {
@@ -31,9 +35,11 @@ public class NotesController : ControllerBase
         [FromQuery, Range(1, 100_000, ErrorMessage = "page deve estar entre 1 e 100000")] int? page,
         [FromQuery, Range(1, NoteService.MaxPageSize, ErrorMessage = "pageSize deve estar entre 1 e 100")] int? pageSize)
     {
+        var userId = User.GetUserId();
+
         if (page is null && pageSize is null)
         {
-            var notes = await _noteService.GetFilteredAsync(folder, tag);
+            var notes = await _noteService.GetFilteredAsync(userId, folder, tag);
             var all = notes.Select(n => n.ToResponse()).ToList();
             return Ok(ApiResponseDto<IEnumerable<NoteResponseDto>>.Ok(all));
         }
@@ -41,7 +47,7 @@ public class NotesController : ControllerBase
         var currentPage = page ?? 1;
         var currentPageSize = pageSize ?? DefaultPageSize;
 
-        var result = await _noteService.GetPagedAsync(folder, tag, currentPage, currentPageSize);
+        var result = await _noteService.GetPagedAsync(userId, folder, tag, currentPage, currentPageSize);
         var items = result.Items.Select(n => n.ToResponse()).ToList();
         var pagination = new PaginationDto(currentPage, currentPageSize, result.TotalItems);
 
@@ -51,7 +57,7 @@ public class NotesController : ControllerBase
     [HttpGet("{id:int}")]
     public async Task<ActionResult<ApiResponseDto<NoteResponseDto>>> GetById(int id)
     {
-        var note = await _noteService.GetByIdAsync(id);
+        var note = await _noteService.GetByIdAsync(User.GetUserId(), id);
         var response = note.ToResponse();
         return Ok(ApiResponseDto<NoteResponseDto>.Ok(response));
     }
@@ -59,7 +65,7 @@ public class NotesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<ApiResponseDto<NoteResponseDto>>> Create([FromBody] CreateNoteDto dto)
     {
-        var createdNote = await _noteService.CreateAsync(dto);
+        var createdNote = await _noteService.CreateAsync(User.GetUserId(), dto);
         var response = createdNote.ToResponse();
 
         return CreatedAtAction(
@@ -71,7 +77,7 @@ public class NotesController : ControllerBase
     [HttpPut("{id:int}")]
     public async Task<ActionResult<ApiResponseDto<NoteResponseDto>>> Update(int id, [FromBody] UpdateNoteDto dto)
     {
-        var updatedNote = await _noteService.UpdateAsync(id, dto);
+        var updatedNote = await _noteService.UpdateAsync(User.GetUserId(), id, dto);
         var response = updatedNote.ToResponse();
 
         return Ok(ApiResponseDto<NoteResponseDto>.Ok(response, "Nota atualizada com sucesso"));
@@ -80,21 +86,21 @@ public class NotesController : ControllerBase
     [HttpDelete("{id:int}")]
     public async Task<ActionResult<ApiResponseDto<object?>>> Delete(int id)
     {
-        await _noteService.DeleteAsync(id);
+        await _noteService.DeleteAsync(User.GetUserId(), id);
         return Ok(ApiResponseDto<object?>.Ok(null, "Nota excluída com sucesso"));
     }
 
     [HttpGet("folders")]
     public async Task<ActionResult<ApiResponseDto<IEnumerable<string>>>> GetFolders()
     {
-        var folders = await _noteService.GetDistinctFoldersAsync();
+        var folders = await _noteService.GetDistinctFoldersAsync(User.GetUserId());
         return Ok(ApiResponseDto<IEnumerable<string>>.Ok(folders));
     }
 
     [HttpGet("tags")]
     public async Task<ActionResult<ApiResponseDto<IEnumerable<string>>>> GetTags()
     {
-        var tags = await _noteService.GetDistinctTagsAsync();
+        var tags = await _noteService.GetDistinctTagsAsync(User.GetUserId());
         return Ok(ApiResponseDto<IEnumerable<string>>.Ok(tags));
     }
 }

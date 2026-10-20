@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using NotesApp.Api.DTOs;
+using NotesApp.Api.Exceptions;
 
 namespace NotesApp.Api.Middleware;
 
@@ -32,6 +33,8 @@ public class ExceptionHandlingMiddleware
         {
             KeyNotFoundException => (HttpStatusCode.NotFound, "Nota não encontrada"),
             ArgumentException => (HttpStatusCode.BadRequest, exception.Message),
+            UnauthorizedAccessException => (HttpStatusCode.Unauthorized, exception.Message),
+            ConflictException => (HttpStatusCode.Conflict, exception.Message),
             _ => (HttpStatusCode.InternalServerError, "Erro interno do servidor")
         };
 

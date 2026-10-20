@@ -1,4 +1,4 @@
-﻿{
+{
   "Logging": {
     "LogLevel": {
       "Default": "Information",
@@ -9,5 +9,8 @@
   "AllowedHosts": "*",
   "ConnectionStrings": {
     "DefaultConnection": "Host=localhost;Database=noteesdb_dev;Username=dev;Password=dev_password"
+  },
+  "Jwt": {
+    "Key": "chave-somente-para-desenvolvimento-local-0123456789"
   }
 }
