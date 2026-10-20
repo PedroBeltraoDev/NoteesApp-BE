@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace NotesApp.Api.Models;
 
@@ -16,7 +16,7 @@ public class Note
     
     public DateTime? UpdatedAt { get; set; }
     
-    public List<string> Tags { get; init; } = [];
+    public List<string> Tags { get; set; } = [];
     
     public bool IsPinned { get; set; }
     
