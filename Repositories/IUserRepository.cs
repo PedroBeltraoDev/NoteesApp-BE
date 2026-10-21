@@ -9,6 +9,14 @@ public interface IUserRepository
     Task AddAsync(User user);
     Task UpdateAsync(User user);
 
+    /// <summary>Grava a conta demo e o conteúdo de exemplo de uma vez só.</summary>
+    Task AddDemoAsync(User user, IEnumerable<Folder> folders, IEnumerable<Note> notes);
+
+    Task<int> CountActiveDemosAsync(DateTime now);
+
+    /// <summary>Apaga as demos vencidas com tudo o que é delas (notas, pastas, tokens). Devolve quantas.</summary>
+    Task<int> DeleteExpiredDemosAsync(DateTime now);
+
     Task<RefreshToken?> GetRefreshTokenAsync(string tokenHash);
 
     /// <summary>Grava o token e remove os tokens já expirados do mesmo usuário.</summary>

@@ -40,6 +40,10 @@ public class TokenService : ITokenService
         var now = _time.GetUtcNow().UtcDateTime;
         var expires = now.AddMinutes(_options.AccessTokenMinutes);
 
+        // Na conta demo o token nunca vale além do prazo da demo: é isso que impõe os 30 minutos no servidor
+        if (user.IsDemo && user.DemoExpiresAt is { } demoEnd && demoEnd < expires)
+            expires = demoEnd;
+
         var descriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(

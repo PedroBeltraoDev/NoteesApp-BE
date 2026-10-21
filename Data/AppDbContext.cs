@@ -60,6 +60,9 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Email).IsRequired().HasMaxLength(254);
             entity.Property(e => e.PasswordHash).IsRequired();
             entity.HasIndex(e => e.Email).IsUnique();
+
+            // A limpeza e a contagem de demos só olham as contas demo
+            entity.HasIndex(e => e.DemoExpiresAt).HasFilter("\"IsDemo\"");
         });
 
         modelBuilder.Entity<RefreshToken>(entity =>
