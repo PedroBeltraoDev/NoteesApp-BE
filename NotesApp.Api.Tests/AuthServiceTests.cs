@@ -26,7 +26,7 @@ public class AuthServiceTests
         _tokens = new TokenService(
             Microsoft.Extensions.Options.Options.Create(new JwtOptions { Key = TestJwt.Key }), _time);
 
-        _service = new AuthService(_users.Object, _tokens, _hasher, _time, NullLogger<AuthService>.Instance);
+        _service = new AuthService(_users.Object, _tokens, _hasher, _time, Microsoft.Extensions.Options.Options.Create(new DemoOptions()), NullLogger<AuthService>.Instance);
     }
 
     private User ExistingUser(string email = "pessoa@teste.com", string password = "senha-segura-123")

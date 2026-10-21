@@ -2,7 +2,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using NotesApp.Api.DTOs;
 using NotesApp.Api.Exceptions;
+using Microsoft.Extensions.Options;
 using NotesApp.Api.Models;
+using NotesApp.Api.Options;
 using NotesApp.Api.Repositories;
 
 namespace NotesApp.Api.Services;
@@ -11,6 +13,7 @@ public interface IAuthService
 {
     Task<AuthResponseDto> RegisterAsync(RegisterDto dto);
     Task<AuthResponseDto> LoginAsync(LoginDto dto);
+    Task<AuthResponseDto> CreateDemoAsync();
     Task<AuthResponseDto> RefreshAsync(string refreshToken);
     Task LogoutAsync(string refreshToken);
     Task<UserDto> GetCurrentUserAsync(Guid userId);
@@ -26,6 +29,13 @@ public class AuthService : IAuthService
     private static readonly Lazy<string> DummyHash = new(
         () => new PasswordHasher<User>().HashPassword(new User(), "senha-descartavel-para-igualar-tempo"));
 
+    // Domínio reservado (.invalid nunca existe): identifica as contas demo e não pode ser usado em cadastros
+    public const string DemoEmailDomain = "demo.noteesapp.invalid";
+
+    // Não é um hash válido de nenhuma senha: a conta demo não tem senha e o login com ela é sempre recusado
+    private const string UnusablePasswordHash = "!";
+
+    private readonly DemoOptions _demo;
     private readonly IUserRepository _users;
     private readonly ITokenService _tokens;
     private readonly IPasswordHasher<User> _hasher;
@@ -37,8 +47,10 @@ public class AuthService : IAuthService
         ITokenService tokens,
         IPasswordHasher<User> hasher,
         TimeProvider time,
+        IOptions<DemoOptions> demo,
         ILogger<AuthService> logger)
     {
+        _demo = demo.Value;
         _users = users;
         _tokens = tokens;
         _hasher = hasher;
@@ -49,6 +61,9 @@ public class AuthService : IAuthService
     public async Task<AuthResponseDto> RegisterAsync(RegisterDto dto)
     {
         var email = NormalizeEmail(dto.Email);
+
+        if (email.EndsWith("@" + DemoEmailDomain, StringComparison.Ordinal))
+            throw new ArgumentException("E-mail inválido");
 
         if (await _users.GetByEmailAsync(email) is not null)
             throw new ConflictException("E-mail já cadastrado");
@@ -77,7 +92,8 @@ public class AuthService : IAuthService
     {
         var user = await _users.GetByEmailAsync(NormalizeEmail(dto.Email));
 
-        if (user is null)
+        // Conta demo não tem senha: trata como e-mail inexistente (inclusive no tempo de resposta)
+        if (user is null || user.IsDemo)
         {
             _hasher.VerifyHashedPassword(new User(), DummyHash.Value, dto.Password);
             throw new UnauthorizedAccessException(InvalidCredentialsMessage);
@@ -117,13 +133,20 @@ public class AuthService : IAuthService
             throw new UnauthorizedAccessException(InvalidRefreshTokenMessage);
         }
 
-        if (stored.ExpiresAt <= now)
-            throw new UnauthorizedAccessException(InvalidRefreshTokenMessage);
-
         var user = await _users.GetByIdAsync(stored.UserId)
             ?? throw new UnauthorizedAccessException(InvalidRefreshTokenMessage);
 
-        var replacement = _tokens.CreateRefreshToken();
+        // Antes de olhar a validade do token: o refresh da demo vence junto com ela, e o front precisa saber que foi a demo
+        if (user.IsDemo && user.DemoExpiresAt <= now)
+        {
+            await _users.DeleteExpiredDemosAsync(now);
+            throw new DemoExpiredException();
+        }
+
+        if (stored.ExpiresAt <= now)
+            throw new UnauthorizedAccessException(InvalidRefreshTokenMessage);
+
+        var replacement = CapToDemo(user, _tokens.CreateRefreshToken());
         await _users.RotateRefreshTokenAsync(stored, ToEntity(replacement, user.Id), now);
 
         return BuildResponse(user, _tokens.CreateAccessToken(user), replacement);
@@ -143,19 +166,54 @@ public class AuthService : IAuthService
         var user = await _users.GetByIdAsync(userId)
             ?? throw new UnauthorizedAccessException("Usuário não encontrado");
 
-        return new UserDto(user.Id, user.Email);
+        return ToDto(user);
+    }
+
+    /// <summary>
+    /// Cria uma conta de demonstração: sem senha, com conteúdo de exemplo, válida por <see cref="DemoOptions.Minutes"/>.
+    /// Aproveita para apagar as demos vencidas (não há tarefa em segundo plano na hospedagem serverless).
+    /// </summary>
+    public async Task<AuthResponseDto> CreateDemoAsync()
+    {
+        var now = _time.GetUtcNow().UtcDateTime;
+
+        await _users.DeleteExpiredDemosAsync(now);
+
+        if (await _users.CountActiveDemosAsync(now) >= _demo.MaxActive)
+            throw new DemoUnavailableException();
+
+        var user = new User
+        {
+            Email = $"demo-{Guid.NewGuid():N}@{DemoEmailDomain}",
+            PasswordHash = UnusablePasswordHash,
+            CreatedAt = now,
+            IsDemo = true,
+            DemoExpiresAt = now.AddMinutes(_demo.Minutes)
+        };
+
+        var (folders, notes) = DemoSeed.Build(user, _demo.Minutes, now);
+        await _users.AddDemoAsync(user, folders, notes);
+
+        _logger.LogInformation("Conta demo criada - ID: {UserId}", user.Id);
+        return await IssueTokensAsync(user);
     }
 
     private async Task<AuthResponseDto> IssueTokensAsync(User user)
     {
-        var refresh = _tokens.CreateRefreshToken();
+        var refresh = CapToDemo(user, _tokens.CreateRefreshToken());
         await _users.AddRefreshTokenAsync(ToEntity(refresh, user.Id), refresh.CreatedAt);
 
         return BuildResponse(user, _tokens.CreateAccessToken(user), refresh);
     }
 
     private static AuthResponseDto BuildResponse(User user, AccessToken access, GeneratedRefreshToken refresh)
-        => new(access.Token, access.ExpiresAt, refresh.Token, refresh.ExpiresAt, new UserDto(user.Id, user.Email));
+        => new(access.Token, access.ExpiresAt, refresh.Token, refresh.ExpiresAt, ToDto(user));
+
+    private static UserDto ToDto(User user) => new(user.Id, user.Email, user.IsDemo, user.DemoExpiresAt);
+
+    // O refresh token da demo também não passa do prazo dela
+    private static GeneratedRefreshToken CapToDemo(User user, GeneratedRefreshToken refresh)
+        => user.IsDemo && user.DemoExpiresAt is { } end && end < refresh.ExpiresAt ? refresh with { ExpiresAt = end } : refresh;
 
     private static RefreshToken ToEntity(GeneratedRefreshToken refresh, Guid userId) => new()
     {

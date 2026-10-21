@@ -200,6 +200,7 @@ Todas as rotas de `/api/notes`, `/api/folders` e `/api/auth/me` exigem o header 
 | Método | Endpoint | Auth | Descrição |
 |--------|----------|------|-----------|
 | `POST` | `/api/auth/register` | não | Cria a conta e já devolve os tokens (`201`; `409` se o e-mail já existe) |
+| `POST` | `/api/auth/demo` | não | Cria uma **conta demo** temporária (sem corpo, e-mail ou senha) e já devolve os tokens (`201`; `503` se há demos demais ativas) |
 | `POST` | `/api/auth/login` | não | Devolve os tokens (`401` para e-mail/senha inválidos) |
 | `POST` | `/api/auth/refresh` | não | Troca o refresh token por um novo par de tokens |
 | `POST` | `/api/auth/logout` | não | Revoga o refresh token informado |
@@ -291,6 +292,26 @@ Uma pasta é uma entidade do usuário (`Folders`): existe mesmo vazia, pode ser 
 > notas passam a apontar para ela. O `Down` devolve o nome para dentro das notas (pastas vazias se perdem).
 > Testada num Postgres real (branch do Neon com cópia dos dados): conversão, índice único e `Down`. Em produção,
 > aplique pela sua máquina como as anteriores e **antes de publicar esta versão da API** (a API nova não funciona com a coluna antiga).
+
+### Conta demo
+
+`POST /api/auth/demo` cria uma conta de demonstração para experimentar o app sem cadastro. Ela funciona como uma conta
+normal (notas, pastas, tags) e já vem com 3 notas de exemplo, mas **dura 30 minutos** (`Demo:Minutes`, de 1 a 240).
+O prazo é imposto **no servidor**, não só na tela:
+
+- O **access token** da demo nunca vale além do prazo, e o **refresh token** também vence com ela (renovar a sessão não
+  alonga a demo). `UserDto` traz `isDemo` e `demoExpiresAt` (UTC); `GET /api/auth/me` também.
+- Depois do prazo, `POST /api/auth/refresh` responde `401` com `errors.code = "demo_expired"` e a conta é apagada.
+- **Limpeza:** como a hospedagem é serverless (sem tarefa agendada), as demos vencidas são apagadas **ao criar outra demo**
+  e ao tentar renovar uma vencida. Apagar a conta leva junto notas, pastas e tokens (chaves estrangeiras em cascata).
+  Contas reais nunca são tocadas (a limpeza só olha `IsDemo`).
+- **Sem senha:** o login com o e-mail de uma demo é sempre recusado, e o domínio `demo.noteesapp.invalid` (reservado) não
+  pode ser usado em cadastros.
+- **Abuso:** a rota usa o limite por IP das rotas de `/api/auth` e há um teto de demos ao mesmo tempo
+  (`Demo:MaxActive`, padrão 100; acima disso `503`).
+
+> **Migration `AddDemoAccounts`**: só acrescenta `IsDemo` (padrão `false`), `DemoExpiresAt` e um índice parcial em `Users`;
+> não mexe em dados. Aplique no banco **antes** de publicar esta API (a API nova lê essas colunas).
 
 ### Regras de uma nota
 

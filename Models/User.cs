@@ -10,4 +10,9 @@ public class User
     public string PasswordHash { get; set; } = string.Empty;
 
     public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
+
+    // Conta de demonstração: temporária (vale até DemoExpiresAt) e sem senha utilizável
+    public bool IsDemo { get; init; }
+
+    public DateTime? DemoExpiresAt { get; init; }
 }

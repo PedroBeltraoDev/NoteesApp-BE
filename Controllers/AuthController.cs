@@ -28,6 +28,17 @@ public class AuthController : ControllerBase
             ApiResponseDto<AuthResponseDto>.Ok(response, "Conta criada com sucesso"));
     }
 
+    /// <summary>Cria uma conta de demonstração temporária (sem e-mail nem senha) e já devolve os tokens.</summary>
+    [HttpPost("demo")]
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    public async Task<ActionResult<ApiResponseDto<AuthResponseDto>>> Demo()
+    {
+        var response = await _authService.CreateDemoAsync();
+        return StatusCode(StatusCodes.Status201Created,
+            ApiResponseDto<AuthResponseDto>.Ok(response, "Conta demo criada"));
+    }
+
     [HttpPost("login")]
     [AllowAnonymous]
     [EnableRateLimiting("auth")]

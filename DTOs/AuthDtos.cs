@@ -34,7 +34,8 @@ public class RefreshRequestDto
     public string RefreshToken { get; set; } = string.Empty;
 }
 
-public record UserDto(Guid Id, string Email);
+// IsDemo/DemoExpiresAt: contas de demonstração (temporárias); DemoExpiresAt é o fim do prazo, em UTC
+public record UserDto(Guid Id, string Email, bool IsDemo = false, DateTime? DemoExpiresAt = null);
 
 public record AuthResponseDto(
     string AccessToken,

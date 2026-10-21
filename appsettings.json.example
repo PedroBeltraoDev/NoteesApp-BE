@@ -18,6 +18,10 @@
     "AccessTokenMinutes": 15,
     "RefreshTokenDays": 14
   },
+  "Demo": {
+    "Minutes": 30,
+    "MaxActive": 100
+  },
   "RateLimiting": {
     "AuthPermitLimit": 10
   },
