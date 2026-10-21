@@ -122,6 +122,8 @@ public class NoteService : INoteService
     
     public const int MaxPageSize = 100;
     
+    private const int MaxTitleLength = 200;
+    private const int MaxContentLength = 1000;
     private const int MaxFolderLength = 100;
     private const int MaxTags = 20;
     private const int MaxTagLength = 50;
@@ -133,14 +135,12 @@ public class NoteService : INoteService
         if (string.IsNullOrWhiteSpace(title))
             throw new ArgumentException("Título é obrigatório");
 
-        if (title.Length < 3 || title.Length > 200)
-            throw new ArgumentException("Título deve ter entre 3 e 200 caracteres");
+        if (title.Length > MaxTitleLength)
+            throw new ArgumentException($"Título deve ter no máximo {MaxTitleLength} caracteres");
 
-        if (string.IsNullOrWhiteSpace(content))
-            throw new ArgumentException("Conteúdo é obrigatório");
-
-        if (content.Length < 10 || content.Length > 1000)
-            throw new ArgumentException("Conteúdo deve ter entre 10 e 1000 caracteres");
+        // A anotação é opcional: uma nota pode ter só o título
+        if (content is { Length: > MaxContentLength })
+            throw new ArgumentException($"Conteúdo deve ter no máximo {MaxContentLength} caracteres");
 
         if (folder is { Length: > MaxFolderLength })
             throw new ArgumentException($"Pasta deve ter no máximo {MaxFolderLength} caracteres");

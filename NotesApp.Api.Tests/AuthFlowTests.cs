@@ -308,6 +308,61 @@ public class AuthFlowTests : IClassFixture<InMemoryApiFactory>
         Assert.Equal(HttpStatusCode.NotFound, (await ClientFor(alice).GetAsync($"/api/notes/{noteId}")).StatusCode);
     }
 
+    // Regras de conteúdo da nota: só o título é obrigatório e não há tamanho mínimo
+
+    [Fact]
+    public async Task Notes_OnlyTheTitleIsRequired_AndThereIsNoMinimumLength()
+    {
+        var user = ClientFor(await RegisterAsync(NewEmail()));
+
+        var titleOnly = await user.PostAsJsonAsync("/api/notes", new { title = "Pagar luz", content = "" });
+        var tiny = await user.PostAsJsonAsync("/api/notes", new { title = "OK", content = "Sim" });
+
+        Assert.Equal(HttpStatusCode.Created, titleOnly.StatusCode);
+        Assert.Equal("", (await DataAsync(titleOnly)).GetProperty("content").GetString());
+        Assert.Equal(HttpStatusCode.Created, tiny.StatusCode);
+    }
+
+    [Fact]
+    public async Task Notes_UpdateAcceptsEmptyContent()
+    {
+        var user = ClientFor(await RegisterAsync(NewEmail()));
+        var created = await user.PostAsJsonAsync("/api/notes", NewNote());
+        var noteId = (await DataAsync(created)).GetProperty("id").GetInt32();
+
+        var updated = await user.PutAsJsonAsync($"/api/notes/{noteId}", new { title = "Só o título", content = "" });
+
+        Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
+        Assert.Equal("", (await DataAsync(updated)).GetProperty("content").GetString());
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Notes_ATitleIsStillRequired(string? title)
+    {
+        var user = ClientFor(await RegisterAsync(NewEmail()));
+
+        var response = await user.PostAsJsonAsync("/api/notes", new { title, content = "Conteúdo da nota" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Notes_ALimitStillApplies_ContentUpTo1000AndTitleUpTo200()
+    {
+        var user = ClientFor(await RegisterAsync(NewEmail()));
+
+        var longContent = await user.PostAsJsonAsync("/api/notes", new { title = "Título", content = new string('a', 1001) });
+        var longTitle = await user.PostAsJsonAsync("/api/notes", new { title = new string('a', 201), content = "Conteúdo" });
+        var atTheLimit = await user.PostAsJsonAsync("/api/notes", new { title = new string('a', 200), content = new string('a', 1000) });
+
+        Assert.Equal(HttpStatusCode.BadRequest, longContent.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, longTitle.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, atTheLimit.StatusCode);
+    }
+
     [Fact]
     public async Task ValidTokenOfAnUnregisteredUser_SeesNoNotes_AndMeReturns401()
     {
