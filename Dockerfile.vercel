@@ -1,0 +1,22 @@
+# Imagem usada pela Vercel (Functions com imagem de contêiner): ela detecta o Dockerfile.vercel na raiz
+# e roteia o tráfego para o contêiner. O app escuta na porta da variável PORT (veja Program.cs).
+# É o mesmo build do Dockerfile (Render/local); mantenha os dois em sincronia.
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+COPY ["NotesApp.Api.csproj", "./"]
+RUN dotnet restore NotesApp.Api.csproj
+
+COPY . .
+RUN dotnet publish NotesApp.Api.csproj -c Release -o /app/publish --no-restore
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+WORKDIR /app
+
+COPY --from=build /app/publish .
+
+ENV ASPNETCORE_ENVIRONMENT=Production
+
+EXPOSE 8080
+
+ENTRYPOINT ["dotnet", "NotesApp.Api.dll"]

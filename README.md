@@ -302,20 +302,46 @@ Regras importantes:
 
 ## 🌐 Deploy
 
-### Backend (Render)
+### Backend (Vercel)
 
-O deploy usa o `Dockerfile` da raiz do repositório (build multi-stage com as imagens `dotnet/sdk:10.0` e `dotnet/aspnet:10.0`).
-O `.dockerignore` mantém testes, `bin/obj` e arquivos de configuração local fora da imagem.
+A Vercel não tem runtime .NET nativo: a API roda como **Function com imagem de contêiner**. A Vercel detecta o
+`Dockerfile.vercel` na raiz (mesmo build do `Dockerfile`: imagens `dotnet/sdk:10.0` e `dotnet/aspnet:10.0`) e roteia o
+tráfego para o contêiner, que escuta na porta da variável `PORT`. O `.dockerignore` mantém testes, `bin/obj` e arquivos
+de configuração local fora da imagem.
 
-### Variáveis de Ambiente (Render)
+1. Crie o projeto na Vercel ligado a este repositório, com o preset **Container**.
+2. Em **Settings > Deployment Protection**, desative a *Vercel Authentication* (a API é pública; quem protege as rotas é o JWT).
+3. Defina as variáveis da tabela abaixo (Settings > Environment Variables) e faça um *redeploy*: variáveis novas só valem
+   para deploys novos.
+4. Aplique as migrations no banco (veja abaixo) e confira `GET /api/health/ready` (200 = banco acessível).
+
+O `Dockerfile` original continua válido para rodar localmente (`docker build .`) ou em outros provedores. Mantenha o
+`Dockerfile` e o `Dockerfile.vercel` em sincronia.
+
+> Funções na Vercel são sem estado e escalam a zero: a primeira requisição depois de um tempo parado pode demorar
+> (partida a frio do .NET). `/api/health` não acessa o banco e é a melhor rota para checagens simples.
+
+### Variáveis de Ambiente (Vercel)
 
 | Variável | Valor |
 |----------|-------|
-| `ASPNETCORE_ENVIRONMENT` | Production |
-| `ConnectionStrings__DefaultConnection` | (string do Neon) |
-| `Jwt__Key` | **Obrigatória.** Chave aleatória de no mínimo 32 caracteres. A API não sobe sem ela. Trocá-la derruba todas as sessões |
+| `ConnectionStrings__DefaultConnection` | (string do Neon; marque como *sensitive*) |
+| `Jwt__Key` | **Obrigatória.** Chave aleatória de no mínimo 32 caracteres (*sensitive*). A API não sobe sem ela. Trocá-la derruba todas as sessões |
+| `Cors__AllowedOrigins__0` | URL do frontend (ex.: `https://noteesapp-ui.vercel.app`). Sem isso, só `http://localhost:5173` é aceito |
 | `ENABLE_SWAGGER` | true (opcional; Swagger só fica ativo em Development ou com esta variável) |
-| `Cors__AllowedOrigins__0` | URL do frontend (ex.: `https://seu-app.vercel.app`). Sem isso, só `http://localhost:5173` é aceito |
+
+`ASPNETCORE_ENVIRONMENT` já vem como `Production` na imagem.
+
+### Migrations em produção
+
+O contêiner não tem terminal, então aplique as migrations da sua máquina, apontando para o banco de produção:
+
+```bash
+ConnectionStrings__DefaultConnection="<string do Neon>" dotnet ef database update
+```
+
+(no PowerShell: `$env:ConnectionStrings__DefaultConnection="<string do Neon>"; dotnet ef database update`).
+Lembre que `AddUsersAndNoteOwnership` **apaga as notas existentes**. Teste antes numa *branch* do Neon.
 
 ### Banco de Dados (Neon)
 
