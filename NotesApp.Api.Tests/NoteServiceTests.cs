@@ -70,8 +70,8 @@ public class NoteServiceTests
 
     [Theory]
     [InlineData("", "Conteúdo válido com mais de 10 caracteres")]
-    [InlineData("AB", "Conteúdo válido com mais de 10 caracteres")]
-    public async Task CreateAsync_WhenTitleIsTooShort_ThrowsArgumentException(string title, string content)
+    [InlineData("   ", "Conteúdo válido com mais de 10 caracteres")]
+    public async Task CreateAsync_WhenTitleIsMissing_ThrowsArgumentException(string title, string content)
     {
         // Arrange
         var createDto = new CreateNoteDto
@@ -86,10 +86,12 @@ public class NoteServiceTests
             _noteService.CreateAsync(UserId, createDto));
     }
 
+    // Não há tamanho mínimo: "Pagar luz" com anotação vazia ou "OK" como título são notas válidas
     [Theory]
     [InlineData("Título válido", "")]
     [InlineData("Título válido", "Curto")]
-    public async Task CreateAsync_WhenContentIsTooShort_ThrowsArgumentException(string title, string content)
+    [InlineData("OK", "Sim")]
+    public async Task CreateAsync_WithShortOrEmptyContent_Succeeds(string title, string content)
     {
         // Arrange
         var createDto = new CreateNoteDto
@@ -99,9 +101,34 @@ public class NoteServiceTests
             Tags = []
         };
 
-        // Act & Assert
-        await Assert.ThrowsAsync<ArgumentException>(() => 
-            _noteService.CreateAsync(UserId, createDto));
+        _repositoryMock.Setup(r => r.CreateAsync(It.IsAny<Note>()))
+                      .ReturnsAsync((Note n) => n);
+
+        // Act
+        var result = await _noteService.CreateAsync(UserId, createDto);
+
+        // Assert
+        Assert.Equal(title, result.Title);
+        Assert.Equal(content, result.Content);
+        _repositoryMock.Verify(r => r.CreateAsync(It.IsAny<Note>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenTitleIsTooLong_ThrowsArgumentException()
+    {
+        var createDto = new CreateNoteDto { Title = new string('a', 201), Content = "Conteúdo" };
+
+        await Assert.ThrowsAsync<ArgumentException>(() => _noteService.CreateAsync(UserId, createDto));
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenContentIsTooLong_ThrowsArgumentException()
+    {
+        var createDto = new CreateNoteDto { Title = "Título válido", Content = new string('a', 1001) };
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() => _noteService.CreateAsync(UserId, createDto));
+
+        Assert.Equal("Conteúdo deve ter no máximo 1000 caracteres", exception.Message);
     }
 
     #endregion

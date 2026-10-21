@@ -268,6 +268,15 @@ Regras importantes:
 > Use `/api/health` para pings frequentes (ex.: manter o Render acordado). `/api/health/ready`
 > abre conexão com o banco e, num Neon em *scale-to-zero*, acorda o banco a cada chamada.
 
+### Regras de uma nota
+
+| Campo | Regra |
+|-------|-------|
+| `title` | Obrigatório, até 200 caracteres (sem tamanho mínimo) |
+| `content` | Opcional (`""` é válido, o campo precisa vir), até 1000 caracteres |
+| `folder` | Opcional, até 100 caracteres |
+| `tags` | Até 20 tags de até 50 caracteres; vazias e repetidas são descartadas |
+
 ### Exemplo de Request/Response
 
 **POST /api/notes**
@@ -275,7 +284,7 @@ Regras importantes:
 // Request
 {
   "title": "Minha Nota",
-  "content": "Conteúdo da nota com mais de 10 caracteres",
+  "content": "Conteúdo da nota",
   "folder": "Trabalho",
   "tags": ["importante", "urgente"],
   "isPinned": true

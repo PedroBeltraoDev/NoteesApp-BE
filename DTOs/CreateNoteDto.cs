@@ -5,12 +5,11 @@ namespace NotesApp.Api.DTOs;
 public class CreateNoteDto
 {
     [Required(ErrorMessage = "Título é obrigatório")]
-    [MinLength(3, ErrorMessage = "Título deve ter pelo menos 3 caracteres")]
     [MaxLength(200, ErrorMessage = "Título deve ter no máximo 200 caracteres")]
     public string Title { get; set; } = string.Empty;
     
-    [Required(ErrorMessage = "Conteúdo é obrigatório")]
-    [MinLength(10, ErrorMessage = "Conteúdo deve ter pelo menos 10 caracteres")]
+    // A anotação é opcional (uma nota pode ter só o título), mas o campo precisa vir: "" é válido, null não
+    [Required(AllowEmptyStrings = true, ErrorMessage = "Conteúdo é obrigatório")]
     [MaxLength(1000, ErrorMessage = "Conteúdo deve ter no máximo 1000 caracteres")]
     public string Content { get; set; } = string.Empty;
     
