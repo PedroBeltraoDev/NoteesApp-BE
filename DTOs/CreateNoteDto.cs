@@ -13,6 +13,10 @@ public class CreateNoteDto
     [MaxLength(1000, ErrorMessage = "Conteúdo deve ter no máximo 1000 caracteres")]
     public string Content { get; set; } = string.Empty;
     
+    // A pasta é indicada pelo id. Clientes antigos mandam só o nome em Folder: a pasta de mesmo nome é usada
+    // (ou criada). Se vierem os dois, vale o id.
+    public int? FolderId { get; set; }
+
     [MaxLength(100, ErrorMessage = "Pasta deve ter no máximo 100 caracteres")]
     public string? Folder { get; set; }
     

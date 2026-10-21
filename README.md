@@ -195,7 +195,7 @@ NotesApp.Api.Tests/
 
 ### Endpoints
 
-Todas as rotas de `/api/notes` e `/api/auth/me` exigem o header `Authorization: Bearer <accessToken>`.
+Todas as rotas de `/api/notes`, `/api/folders` e `/api/auth/me` exigem o header `Authorization: Bearer <accessToken>`.
 
 | Método | Endpoint | Auth | Descrição |
 |--------|----------|------|-----------|
@@ -206,13 +206,18 @@ Todas as rotas de `/api/notes` e `/api/auth/me` exigem o header `Authorization: 
 | `GET` | `/api/auth/me` | sim | Dados do usuário autenticado |
 | `GET` | `/api/health` | não | Liveness: o processo está de pé (não acessa o banco) |
 | `GET` | `/api/health/ready` | não | Readiness: verifica o banco; responde `503` se estiver inacessível |
-| `GET` | `/api/notes` | sim | Listar notas (filtros opcionais: `?folder=X&tag=Y`; paginação opcional: `?page=1&pageSize=20`) |
+| `GET` | `/api/notes` | sim | Listar notas (filtros opcionais: `?folderId=3&tag=Y`, ou `?folder=Nome` para clientes antigos; paginação opcional: `?page=1&pageSize=20`) |
 | `GET` | `/api/notes/{id}` | sim | Buscar nota por ID |
 | `POST` | `/api/notes` | sim | Criar nova nota |
 | `PUT` | `/api/notes/{id}` | sim | Atualizar nota (o `id` vem só da rota; não enviar no body) |
 | `DELETE` | `/api/notes/{id}` | sim | Excluir nota |
-| `GET` | `/api/notes/folders` | sim | Listar pastas únicas (só do usuário) |
+| `GET` | `/api/notes/folders` | sim | Nomes das pastas do usuário, inclusive as vazias (para clientes antigos; prefira `/api/folders`) |
 | `GET` | `/api/notes/tags` | sim | Listar tags únicas (só do usuário) |
+| `GET` | `/api/folders` | sim | Pastas do usuário (inclusive as vazias) com o total de notas de cada uma: `{ id, name, noteCount, createdAt }` |
+| `GET` | `/api/folders/{id}` | sim | Uma pasta (`404` se não existir ou for de outro usuário) |
+| `POST` | `/api/folders` | sim | Criar pasta `{ "name": "Trabalho" }` (`201`; `409` se já existe uma com esse nome; `400` se vazio ou com mais de 100 caracteres) |
+| `PUT` | `/api/folders/{id}` | sim | Renomear (`409` se o nome é de outra pasta; trocar só maiúsculas/minúsculas é permitido) |
+| `DELETE` | `/api/folders/{id}` | sim | Excluir a pasta. **As notas dela não são apagadas**: ficam sem pasta |
 
 Fixar/desafixar uma nota é feito alterando `isPinned` no `PUT`.
 
@@ -268,13 +273,33 @@ Regras importantes:
 > Use `/api/health` para pings frequentes (ex.: manter o Render acordado). `/api/health/ready`
 > abre conexão com o banco e, num Neon em *scale-to-zero*, acorda o banco a cada chamada.
 
+### Pastas
+
+Uma pasta é uma entidade do usuário (`Folders`): existe mesmo vazia, pode ser renomeada e excluída. Uma nota está em
+**no máximo uma** pasta (`folderId`, `null` = sem pasta); as tags continuam sendo vários rótulos por nota.
+
+- O nome é único **por usuário, sem diferenciar maiúsculas/minúsculas** ("Trabalho" = "trabalho"): índice único em
+  `(UserId, lower(Name))`. Nomes são aparados e espaços repetidos viram um só.
+- Nas notas, a pasta é indicada por **`folderId`** (a resposta traz `folderId` e `folder`, o nome). Se o `folderId` não
+  for de uma pasta do usuário, a resposta é `404` ("Pasta não encontrada") e a nota não é salva.
+- **Compatibilidade com o front antigo:** enviar só `folder` (o nome) ainda funciona: usa a pasta de mesmo nome ou a cria.
+  Se vierem os dois, vale o `folderId`. O filtro `?folder=Nome` continua aceito (ignora maiúsculas/minúsculas).
+- Excluir uma pasta não apaga notas: o banco as deixa sem pasta (`ON DELETE SET NULL`).
+
+> **Migration `AddFolders`**: troca o texto `Notes.Folder` por `Notes.FolderId` + a tabela `Folders`, **preservando os
+> dados**: cada nome de pasta vira uma pasta do dono (variações de maiúsculas e espaços nas pontas viram uma só) e as
+> notas passam a apontar para ela. O `Down` devolve o nome para dentro das notas (pastas vazias se perdem).
+> Testada num Postgres real (branch do Neon com cópia dos dados): conversão, índice único e `Down`. Em produção,
+> aplique pela sua máquina como as anteriores e **antes de publicar esta versão da API** (a API nova não funciona com a coluna antiga).
+
 ### Regras de uma nota
 
 | Campo | Regra |
 |-------|-------|
 | `title` | Obrigatório, até 200 caracteres (sem tamanho mínimo) |
 | `content` | Opcional (`""` é válido, o campo precisa vir), até 1000 caracteres |
-| `folder` | Opcional, até 100 caracteres |
+| `folderId` | Opcional: id de uma pasta do usuário (`null` = sem pasta) |
+| `folder` | Opcional, só por compatibilidade: nome da pasta (até 100 caracteres), usada ou criada se não vier `folderId` |
 | `tags` | Até 20 tags de até 50 caracteres; vazias e repetidas são descartadas |
 
 ### Exemplo de Request/Response

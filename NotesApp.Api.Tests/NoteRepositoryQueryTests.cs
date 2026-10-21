@@ -22,7 +22,7 @@ public class NoteRepositoryQueryTests
     [Fact]
     public void BuildFilteredQuery_WithTag_TranslatesToCaseInsensitiveSql()
     {
-        var sql = CreateRepository().BuildFilteredQuery(UserId, null, "Importante").ToQueryString();
+        var sql = CreateRepository().BuildFilteredQuery(UserId, null, null, "Importante").ToQueryString();
 
         Assert.Contains("lower", sql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("importante", sql);
@@ -31,16 +31,49 @@ public class NoteRepositoryQueryTests
     [Fact]
     public void BuildFilteredQuery_WithFolderAndTag_AppliesBothFilters()
     {
-        var sql = CreateRepository().BuildFilteredQuery(UserId, "Trabalho", "urgente").ToQueryString();
+        var sql = CreateRepository().BuildFilteredQuery(UserId, null, "Trabalho", "urgente").ToQueryString();
 
-        Assert.Contains("Folder", sql);
+        Assert.Contains("Folders", sql);
         Assert.Contains("urgente", sql);
+    }
+
+    [Fact]
+    public void BuildFilteredQuery_WithFolderId_FiltersByTheForeignKey()
+    {
+        var sql = CreateRepository().BuildFilteredQuery(UserId, 7, null, null).ToQueryString();
+
+        // O id vai como parâmetro da query (@folderId), nunca concatenado no SQL
+        Assert.Contains("\"FolderId\" = @", sql);
+        Assert.Contains("='7'", sql);
+    }
+
+    [Fact]
+    public void BuildFilteredQuery_LoadsTheFolderSoTheResponseCanShowItsName()
+    {
+        var sql = CreateRepository().BuildFilteredQuery(UserId, null, null, null).ToQueryString();
+
+        Assert.Contains("LEFT JOIN \"Folders\"", sql);
+    }
+
+    [Fact]
+    public void FolderSummaryQuery_CountsNotesInTheDatabaseAndKeepsTheOwnerFilter()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql("Host=localhost;Database=unused;Username=u;Password=p")
+            .Options;
+        var repository = new FolderRepository(new AppDbContext(options));
+
+        var sql = repository.BuildSummaryQuery(UserId).ToQueryString();
+
+        Assert.Contains("COUNT", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(UserId.ToString(), sql);
+        Assert.Contains("lower", sql, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
     public void BuildFilteredQuery_PagedQuery_UsesStableOrderingAndLimitOffset()
     {
-        var sql = CreateRepository().BuildFilteredQuery(UserId, null, null).Skip(20).Take(10).ToQueryString();
+        var sql = CreateRepository().BuildFilteredQuery(UserId, null, null, null).Skip(20).Take(10).ToQueryString();
 
         Assert.Contains("ORDER BY n.\"IsPinned\" DESC, n.\"CreatedAt\" DESC, n.\"Id\" DESC", sql);
         Assert.Contains("LIMIT", sql);
@@ -59,7 +92,7 @@ public class NoteRepositoryQueryTests
     [Fact]
     public void BuildFilteredQuery_AlwaysRestrictsToTheOwner()
     {
-        var sql = CreateRepository().BuildFilteredQuery(UserId, null, null).ToQueryString();
+        var sql = CreateRepository().BuildFilteredQuery(UserId, null, null, null).ToQueryString();
 
         Assert.Contains("\"UserId\" =", sql);
     }

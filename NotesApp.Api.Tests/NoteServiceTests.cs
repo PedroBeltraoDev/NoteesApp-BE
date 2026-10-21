@@ -11,6 +11,7 @@ namespace NotesApp.Api.Tests;
 public class NoteServiceTests
 {
     private readonly Mock<INoteRepository> _repositoryMock;
+    private readonly Mock<IFolderRepository> _foldersMock;
     private readonly NoteService _noteService;
     private static readonly Guid UserId = Guid.NewGuid();
     private static readonly Guid OtherUserId = Guid.NewGuid();
@@ -18,10 +19,12 @@ public class NoteServiceTests
     public NoteServiceTests()
     {
         _repositoryMock = new Mock<INoteRepository>();
+        _foldersMock = new Mock<IFolderRepository>();
         var loggerMock = new Mock<ILogger<NoteService>>();
         
         _noteService = new NoteService(
-            _repositoryMock.Object, 
+            _repositoryMock.Object,
+            _foldersMock.Object,
             loggerMock.Object
         );
     }
@@ -41,12 +44,16 @@ public class NoteServiceTests
             IsPinned = false
         };
 
+        var existingFolder = new Folder { Id = 8, UserId = UserId, Name = "Testes" };
+        _foldersMock.Setup(f => f.GetByNameAsync(UserId, "Testes")).ReturnsAsync(existingFolder);
+
         var expectedNote = new Note
         {
             Id = 1,
             Title = createDto.Title,
             Content = createDto.Content,
-            Folder = createDto.Folder,
+            FolderId = existingFolder.Id,
+            Folder = existingFolder,
             Tags = [.. createDto.Tags],
             IsPinned = createDto.IsPinned,
             CreatedAt = DateTime.UtcNow,
@@ -202,6 +209,9 @@ public class NoteServiceTests
             Tags = ["antigo"]
         };
 
+        _foldersMock.Setup(f => f.GetByNameAsync(UserId, "Atualizados"))
+                    .ReturnsAsync(new Folder { Id = 5, UserId = UserId, Name = "Atualizados" });
+
         _repositoryMock.Setup(r => r.GetByIdAsync(UserId, noteId))
                       .ReturnsAsync(existingNote);
 
@@ -215,7 +225,8 @@ public class NoteServiceTests
         Assert.NotNull(result);
         Assert.Equal(noteId, result.Id);
         Assert.Equal(updateDto.Title, result.Title);
-        Assert.Equal(updateDto.Folder, result.Folder);
+        Assert.Equal(5, result.FolderId);
+        Assert.Equal(updateDto.Folder, result.Folder!.Name);
         Assert.Equal(["atualizado"], result.Tags);
         Assert.True(result.IsPinned);
         Assert.NotNull(result.UpdatedAt);
@@ -298,7 +309,7 @@ public class NoteServiceTests
                       .ReturnsAsync(allNotes);
 
         // Act
-        var result = await _noteService.GetFilteredAsync(UserId, null!, null!);
+        var result = await _noteService.GetFilteredAsync(UserId, null, null!, null!);
 
         // Assert - Convert to list to avoid multiple enumeration
         var resultList = result.ToList();
@@ -313,21 +324,21 @@ public class NoteServiceTests
         const string folder = "Testes";
         var notesInFolder = new List<Note>
         {
-            new() { Id = 1, Title = "Nota 1", Content = "Conteúdo 1", Folder = folder, Tags = [] },
-            new() { Id = 2, Title = "Nota 2", Content = "Conteúdo 2", Folder = folder, Tags = [] }
+            new() { Id = 1, Title = "Nota 1", Content = "Conteúdo 1", Folder = new Folder { Name = folder }, Tags = [] },
+            new() { Id = 2, Title = "Nota 2", Content = "Conteúdo 2", Folder = new Folder { Name = folder }, Tags = [] }
         };
 
-        _repositoryMock.Setup(r => r.GetFilteredAsync(UserId, folder, null))
+        _repositoryMock.Setup(r => r.GetFilteredAsync(UserId, null, folder, null))
                       .ReturnsAsync(notesInFolder);
 
         // Act
-        var result = await _noteService.GetFilteredAsync(UserId, folder, null!);
+        var result = await _noteService.GetFilteredAsync(UserId, null, folder, null!);
 
         // Assert - Convert to list to avoid multiple enumeration
         var resultList = result.ToList();
         Assert.NotNull(resultList);
         Assert.Equal(2, resultList.Count);
-        Assert.All(resultList, n => Assert.Equal(folder, n.Folder));
+        Assert.All(resultList, n => Assert.Equal(folder, n.Folder!.Name));
     }
 
     #endregion
@@ -388,6 +399,8 @@ public class NoteServiceTests
             Tags = ["  Importante ", "importante", "", "   ", "Urgente"]
         };
 
+        _foldersMock.Setup(f => f.CreateAsync(It.IsAny<Folder>())).ReturnsAsync((Folder f) => f);
+
         Note? saved = null;
         _repositoryMock.Setup(r => r.CreateAsync(It.IsAny<Note>()))
                       .Callback<Note>(n => saved = n)
@@ -396,9 +409,10 @@ public class NoteServiceTests
         // Act
         await _noteService.CreateAsync(UserId, createDto);
 
-        // Assert - a nota persistida já vem normalizada
+        // Assert - a nota persistida já vem normalizada (a pasta "  Trabalho  " vira a pasta "Trabalho")
         Assert.NotNull(saved);
-        Assert.Equal("Trabalho", saved.Folder);
+        Assert.Equal("Trabalho", saved.Folder!.Name);
+        _foldersMock.Verify(f => f.GetByNameAsync(UserId, "Trabalho"), Times.Once);
         Assert.Equal(["Importante", "Urgente"], saved.Tags);
     }
 
@@ -421,6 +435,8 @@ public class NoteServiceTests
 
         Assert.NotNull(saved);
         Assert.Null(saved.Folder);
+        Assert.Null(saved.FolderId);
+        _foldersMock.Verify(f => f.CreateAsync(It.IsAny<Folder>()), Times.Never);
     }
 
     [Fact]
@@ -481,24 +497,24 @@ public class NoteServiceTests
     {
         var notes = new List<Note> { new() { Id = 1, Tags = ["Importante"] } };
 
-        _repositoryMock.Setup(r => r.GetFilteredAsync(UserId, null, "importante"))
+        _repositoryMock.Setup(r => r.GetFilteredAsync(UserId, null, null, "importante"))
                       .ReturnsAsync(notes);
 
-        var result = await _noteService.GetFilteredAsync(UserId, null, "  importante ");
+        var result = await _noteService.GetFilteredAsync(UserId, null, null, "  importante ");
 
         Assert.Single(result);
-        _repositoryMock.Verify(r => r.GetFilteredAsync(UserId, null, "importante"), Times.Once);
+        _repositoryMock.Verify(r => r.GetFilteredAsync(UserId, null, null, "importante"), Times.Once);
     }
 
     [Fact]
     public async Task GetFilteredAsync_WhenFolderAndTag_UsesSingleRepositoryQuery()
     {
-        _repositoryMock.Setup(r => r.GetFilteredAsync(UserId, "Trabalho", "urgente"))
+        _repositoryMock.Setup(r => r.GetFilteredAsync(UserId, null, "Trabalho", "urgente"))
                       .ReturnsAsync(new List<Note>());
 
-        await _noteService.GetFilteredAsync(UserId, "Trabalho", "urgente");
+        await _noteService.GetFilteredAsync(UserId, null, "Trabalho", "urgente");
 
-        _repositoryMock.Verify(r => r.GetFilteredAsync(UserId, "Trabalho", "urgente"), Times.Once);
+        _repositoryMock.Verify(r => r.GetFilteredAsync(UserId, null, "Trabalho", "urgente"), Times.Once);
         _repositoryMock.Verify(r => r.GetAllAsync(UserId), Times.Never);
     }
 
@@ -510,10 +526,10 @@ public class NoteServiceTests
     public async Task GetPagedAsync_DelegatesToRepositoryWithTrimmedFilters()
     {
         var expected = new PagedResult<Note>([new Note { Id = 1 }], 42);
-        _repositoryMock.Setup(r => r.GetPagedAsync(UserId, "Trabalho", "urgente", 2, 10))
+        _repositoryMock.Setup(r => r.GetPagedAsync(UserId, null, "Trabalho", "urgente", 2, 10))
                       .ReturnsAsync(expected);
 
-        var result = await _noteService.GetPagedAsync(UserId, "  Trabalho ", " urgente  ", 2, 10);
+        var result = await _noteService.GetPagedAsync(UserId, null, "  Trabalho ", " urgente  ", 2, 10);
 
         Assert.Same(expected, result);
     }
@@ -521,12 +537,12 @@ public class NoteServiceTests
     [Fact]
     public async Task GetPagedAsync_WhenFiltersAreBlank_PassesNull()
     {
-        _repositoryMock.Setup(r => r.GetPagedAsync(UserId, null, null, 1, 20))
+        _repositoryMock.Setup(r => r.GetPagedAsync(UserId, null, null, null, 1, 20))
                       .ReturnsAsync(new PagedResult<Note>([], 0));
 
-        await _noteService.GetPagedAsync(UserId, "   ", "", 1, 20);
+        await _noteService.GetPagedAsync(UserId, null, "   ", "", 1, 20);
 
-        _repositoryMock.Verify(r => r.GetPagedAsync(UserId, null, null, 1, 20), Times.Once);
+        _repositoryMock.Verify(r => r.GetPagedAsync(UserId, null, null, null, 1, 20), Times.Once);
     }
 
     [Theory]
@@ -537,10 +553,10 @@ public class NoteServiceTests
     public async Task GetPagedAsync_WhenPageParametersAreInvalid_ThrowsArgumentException(int page, int pageSize)
     {
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            _noteService.GetPagedAsync(UserId, null, null, page, pageSize));
+            _noteService.GetPagedAsync(UserId, null, null, null, page, pageSize));
 
         _repositoryMock.Verify(
-            r => r.GetPagedAsync(It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<int>()),
+            r => r.GetPagedAsync(It.IsAny<Guid>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<int>()),
             Times.Never);
     }
 

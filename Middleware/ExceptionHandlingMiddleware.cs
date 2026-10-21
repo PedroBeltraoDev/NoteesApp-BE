@@ -31,6 +31,7 @@ public class ExceptionHandlingMiddleware
     {
         var (statusCode, message) = exception switch
         {
+            FolderNotFoundException => (HttpStatusCode.NotFound, "Pasta não encontrada"),
             KeyNotFoundException => (HttpStatusCode.NotFound, "Nota não encontrada"),
             ArgumentException => (HttpStatusCode.BadRequest, exception.Message),
             UnauthorizedAccessException => (HttpStatusCode.Unauthorized, exception.Message),

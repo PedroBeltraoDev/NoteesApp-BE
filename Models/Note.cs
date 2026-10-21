@@ -24,6 +24,8 @@ public class Note
     
     public bool IsPinned { get; set; }
     
-    [MaxLength(100)]
-    public string? Folder { get; set; }
+    // Sem pasta = null. Se a pasta for excluída, o banco zera este campo (ON DELETE SET NULL)
+    public int? FolderId { get; set; }
+
+    public Folder? Folder { get; set; }
 }

@@ -7,8 +7,9 @@ public interface INoteRepository
 {
     Task<IEnumerable<Note>> GetAllAsync(Guid userId);
     Task<Note?> GetByIdAsync(Guid userId, int id);
-    Task<IEnumerable<Note>> GetFilteredAsync(Guid userId, string? folder, string? tag);
-    Task<PagedResult<Note>> GetPagedAsync(Guid userId, string? folder, string? tag, int page, int pageSize);
+    // folderId filtra pela pasta; folder (nome) continua aceito para clientes antigos
+    Task<IEnumerable<Note>> GetFilteredAsync(Guid userId, int? folderId, string? folder, string? tag);
+    Task<PagedResult<Note>> GetPagedAsync(Guid userId, int? folderId, string? folder, string? tag, int page, int pageSize);
     Task<Note> CreateAsync(Note note);
     Task UpdateAsync(Note note);
     Task DeleteAsync(Guid userId, int id);

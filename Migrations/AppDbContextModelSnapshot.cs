@@ -23,6 +23,32 @@ namespace NotesApp.Api.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("NotesApp.Api.Models.Folder", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Folders");
+                });
+
             modelBuilder.Entity("NotesApp.Api.Models.Note", b =>
                 {
                     b.Property<int>("Id")
@@ -39,9 +65,8 @@ namespace NotesApp.Api.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Folder")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                    b.Property<int?>("FolderId")
+                        .HasColumnType("integer");
 
                     b.Property<bool>("IsPinned")
                         .HasColumnType("boolean");
@@ -63,7 +88,7 @@ namespace NotesApp.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId", "Folder");
+                    b.HasIndex("FolderId");
 
                     b.HasIndex("UserId", "IsPinned", "CreatedAt", "Id")
                         .IsDescending(false, true, true, true);
@@ -130,13 +155,31 @@ namespace NotesApp.Api.Migrations
                     b.ToTable("Users");
                 });
 
-            modelBuilder.Entity("NotesApp.Api.Models.Note", b =>
+            modelBuilder.Entity("NotesApp.Api.Models.Folder", b =>
                 {
                     b.HasOne("NotesApp.Api.Models.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("NotesApp.Api.Models.Note", b =>
+                {
+                    b.HasOne("NotesApp.Api.Models.Folder", "Folder")
+                        .WithMany("Notes")
+                        .HasForeignKey("FolderId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("NotesApp.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Folder");
 
                     b.Navigation("User");
                 });
@@ -148,6 +191,11 @@ namespace NotesApp.Api.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("NotesApp.Api.Models.Folder", b =>
+                {
+                    b.Navigation("Notes");
                 });
 #pragma warning restore 612, 618
         }

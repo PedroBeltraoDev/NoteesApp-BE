@@ -34,7 +34,7 @@ public class ApiIntegrationTests : IClassFixture<MockedServiceApiFactory>
     [Fact]
     public async Task GetNotes_WithoutPaginationParameters_ReturnsEverythingWithoutPagination()
     {
-        _factory.NoteService.Setup(s => s.GetFilteredAsync(UserId, null, null))
+        _factory.NoteService.Setup(s => s.GetFilteredAsync(UserId, null, null, null))
             .ReturnsAsync(new List<Note> { new() { Id = 1, Title = "A" }, new() { Id = 2, Title = "B" } });
 
         var response = await _client.GetAsync("/api/notes");
@@ -48,7 +48,7 @@ public class ApiIntegrationTests : IClassFixture<MockedServiceApiFactory>
     [Fact]
     public async Task GetNotes_WithPageAndPageSize_ReturnsPageAndPaginationMetadata()
     {
-        _factory.NoteService.Setup(s => s.GetPagedAsync(UserId, "Trabalho", "urgente", 2, 5))
+        _factory.NoteService.Setup(s => s.GetPagedAsync(UserId, null, "Trabalho", "urgente", 2, 5))
             .ReturnsAsync(new PagedResult<Note>([new Note { Id = 6, Title = "F" }], 11));
 
         var response = await _client.GetAsync("/api/notes?folder=Trabalho&tag=urgente&page=2&pageSize=5");
@@ -66,7 +66,7 @@ public class ApiIntegrationTests : IClassFixture<MockedServiceApiFactory>
     [Fact]
     public async Task GetNotes_WithOnlyPageSize_DefaultsToFirstPage()
     {
-        _factory.NoteService.Setup(s => s.GetPagedAsync(UserId, null, null, 1, 10))
+        _factory.NoteService.Setup(s => s.GetPagedAsync(UserId, null, null, null, 1, 10))
             .ReturnsAsync(new PagedResult<Note>([], 0));
 
         var response = await _client.GetAsync("/api/notes?pageSize=10");
@@ -175,7 +175,7 @@ public class ApiIntegrationTests : IClassFixture<MockedServiceApiFactory>
     public async Task ProtectedRoute_WithTokenWithoutSubject_Returns401()
     {
         var token = CreateToken(subject: null);
-        _factory.NoteService.Setup(s => s.GetFilteredAsync(It.IsAny<Guid>(), null, null))
+        _factory.NoteService.Setup(s => s.GetFilteredAsync(It.IsAny<Guid>(), null, null, null))
             .ReturnsAsync(new List<Note>());
 
         var response = await _factory.CreateClient().WithBearer(token).GetAsync("/api/notes");
@@ -187,13 +187,13 @@ public class ApiIntegrationTests : IClassFixture<MockedServiceApiFactory>
     public async Task Handler_ReceivesTheUserIdFromTheTokenSubject()
     {
         var someoneElse = Guid.NewGuid();
-        _factory.NoteService.Setup(s => s.GetFilteredAsync(someoneElse, null, null))
+        _factory.NoteService.Setup(s => s.GetFilteredAsync(someoneElse, null, null, null))
             .ReturnsAsync(new List<Note>());
 
         var response = await _factory.CreateClientFor(someoneElse).GetAsync("/api/notes");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        _factory.NoteService.Verify(s => s.GetFilteredAsync(someoneElse, null, null), Times.Once);
+        _factory.NoteService.Verify(s => s.GetFilteredAsync(someoneElse, null, null, null), Times.Once);
     }
 
     // ---------- Health

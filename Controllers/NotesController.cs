@@ -30,6 +30,7 @@ public class NotesController : ControllerBase
     /// </summary>
     [HttpGet]
     public async Task<ActionResult<ApiResponseDto<IEnumerable<NoteResponseDto>>>> GetAll(
+        [FromQuery] int? folderId,
         [FromQuery] string? folder,
         [FromQuery] string? tag,
         [FromQuery, Range(1, 100_000, ErrorMessage = "page deve estar entre 1 e 100000")] int? page,
@@ -39,7 +40,7 @@ public class NotesController : ControllerBase
 
         if (page is null && pageSize is null)
         {
-            var notes = await _noteService.GetFilteredAsync(userId, folder, tag);
+            var notes = await _noteService.GetFilteredAsync(userId, folderId, folder, tag);
             var all = notes.Select(n => n.ToResponse()).ToList();
             return Ok(ApiResponseDto<IEnumerable<NoteResponseDto>>.Ok(all));
         }
@@ -47,7 +48,7 @@ public class NotesController : ControllerBase
         var currentPage = page ?? 1;
         var currentPageSize = pageSize ?? DefaultPageSize;
 
-        var result = await _noteService.GetPagedAsync(userId, folder, tag, currentPage, currentPageSize);
+        var result = await _noteService.GetPagedAsync(userId, folderId, folder, tag, currentPage, currentPageSize);
         var items = result.Items.Select(n => n.ToResponse()).ToList();
         var pagination = new PaginationDto(currentPage, currentPageSize, result.TotalItems);
 

@@ -5,7 +5,7 @@ namespace NotesApp.Api.Mappers;
 
 public static class NoteMapper
 {
-    public static Note ToEntity(this CreateNoteDto dto, Guid userId)
+    public static Note ToEntity(this CreateNoteDto dto, Guid userId, Folder? folder = null)
     {
         var now = DateTime.UtcNow;
 
@@ -14,7 +14,8 @@ public static class NoteMapper
             UserId = userId,
             Title = dto.Title,
             Content = dto.Content,
-            Folder = dto.Folder,
+            FolderId = folder?.Id,
+            Folder = folder,
             Tags = [.. dto.Tags],
             IsPinned = dto.IsPinned,
             CreatedAt = now,
@@ -22,11 +23,12 @@ public static class NoteMapper
         };
     }
 
-    public static void ApplyTo(this UpdateNoteDto dto, Note note)
+    public static void ApplyTo(this UpdateNoteDto dto, Note note, Folder? folder = null)
     {
         note.Title = dto.Title;
         note.Content = dto.Content;
-        note.Folder = dto.Folder;
+        note.FolderId = folder?.Id;
+        note.Folder = folder;
         note.Tags = [.. dto.Tags];
         note.IsPinned = dto.IsPinned;
         note.UpdatedAt = DateTime.UtcNow;
@@ -39,7 +41,8 @@ public static class NoteMapper
         Content = note.Content,
         CreatedAt = note.CreatedAt,
         UpdatedAt = note.UpdatedAt,
-        Folder = note.Folder,
+        FolderId = note.FolderId,
+        Folder = note.Folder?.Name,
         Tags = [.. note.Tags],
         IsPinned = note.IsPinned
     };
