@@ -4,6 +4,15 @@
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
+
+        <!-- Partida a frio: a API roda como função serverless e esfria em ~30 s parada, então cada milissegundo
+             de inicialização aparece para o usuário. -->
+        <!-- Sem ICU (a API não usa regras de cultura): evita carregar a biblioteca na partida -->
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <!-- PGO de camadas só compensa em processos longos; aqui o processo vive pouco -->
+        <TieredPGO>false</TieredPGO>
+        <!-- Sem a thread do GC concorrente: partida mais leve em contêiner com pouca CPU -->
+        <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
     </PropertyGroup>
 
     <ItemGroup>
