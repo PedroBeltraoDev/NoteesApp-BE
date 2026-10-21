@@ -2,10 +2,12 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 COPY ["NotesApp.Api.csproj", "./"]
-RUN dotnet restore NotesApp.Api.csproj
+# ReadyToRun: o código já vai compilado para a máquina (linux-x64), então a API não gasta a partida a frio compilando (JIT)
+# (o restore precisa pedir o ReadyToRun, senão o publish não encontra o compilador e falha com NETSDK1094)
+RUN dotnet restore NotesApp.Api.csproj -r linux-x64 -p:PublishReadyToRun=true
 
 COPY . .
-RUN dotnet publish NotesApp.Api.csproj -c Release -o /app/publish --no-restore
+RUN dotnet publish NotesApp.Api.csproj -c Release -r linux-x64 --self-contained false -p:PublishReadyToRun=true -o /app/publish --no-restore
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
