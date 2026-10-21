@@ -8,6 +8,7 @@ public class AppDbContext : DbContext
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
     
     public DbSet<Note> Notes => Set<Note>();
+    public DbSet<Folder> Folders => Set<Folder>();
     public DbSet<User> Users => Set<User>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     
@@ -20,7 +21,6 @@ public class AppDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Title).IsRequired().HasMaxLength(200);
             entity.Property(e => e.Content).IsRequired().HasMaxLength(1000);
-            entity.Property(e => e.Folder).HasMaxLength(100);
             entity.Property(e => e.CreatedAt).IsRequired();
 
             entity.HasOne(e => e.User)
@@ -28,12 +28,30 @@ public class AppDbContext : DbContext
                 .HasForeignKey(e => e.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Filtro por pasta (dentro das notas do usuário)
-            entity.HasIndex(e => new { e.UserId, e.Folder });
+            // A pasta excluída não apaga as notas: elas ficam sem pasta. O índice de FolderId é criado pelo EF (FK)
+            entity.HasOne(e => e.Folder)
+                .WithMany(f => f.Notes)
+                .HasForeignKey(e => e.FolderId)
+                .OnDelete(DeleteBehavior.SetNull);
 
             // Ordenação padrão da listagem do usuário (fixadas primeiro, mais recentes depois); Id desempata
             entity.HasIndex(e => new { e.UserId, e.IsPinned, e.CreatedAt, e.Id })
                 .IsDescending(false, true, true, true);
+        });
+
+        modelBuilder.Entity<Folder>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.CreatedAt).IsRequired();
+
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // O nome é único por usuário sem diferenciar maiúsculas: índice único em (UserId, lower(Name)),
+            // criado na migration AddFolders (o EF não modela índice de expressão).
         });
 
         modelBuilder.Entity<User>(entity =>

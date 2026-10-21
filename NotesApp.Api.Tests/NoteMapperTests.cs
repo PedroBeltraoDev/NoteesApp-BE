@@ -21,14 +21,16 @@ public class NoteMapperTests
             IsPinned = true
         };
 
+        var folder = new Folder { Id = 4, Name = "Trabalho" };
         var before = DateTime.UtcNow;
-        var note = dto.ToEntity(OwnerId);
+        var note = dto.ToEntity(OwnerId, folder);
 
         Assert.Equal(0, note.Id);
         Assert.Equal(OwnerId, note.UserId);
         Assert.Equal("Título", note.Title);
         Assert.Equal("Conteúdo da nota", note.Content);
-        Assert.Equal("Trabalho", note.Folder);
+        Assert.Equal(4, note.FolderId);
+        Assert.Same(folder, note.Folder);
         Assert.Equal(["a", "b"], note.Tags);
         Assert.True(note.IsPinned);
         Assert.True(note.CreatedAt >= before);
@@ -67,13 +69,16 @@ public class NoteMapperTests
             IsPinned = true
         };
 
-        dto.ApplyTo(note);
+        var folder = new Folder { Id = 9, Name = "Pasta" };
+
+        dto.ApplyTo(note, folder);
 
         Assert.Equal(7, note.Id);
         Assert.Equal(createdAt, note.CreatedAt);
         Assert.Equal("Novo", note.Title);
         Assert.Equal("Conteúdo novo", note.Content);
-        Assert.Equal("Pasta", note.Folder);
+        Assert.Equal(9, note.FolderId);
+        Assert.Equal("Pasta", note.Folder!.Name);
         Assert.Equal(["nova"], note.Tags);
         Assert.True(note.IsPinned);
         Assert.NotNull(note.UpdatedAt);
@@ -90,7 +95,8 @@ public class NoteMapperTests
             Id = 3,
             Title = "T",
             Content = "C",
-            Folder = "F",
+            FolderId = 2,
+            Folder = new Folder { Id = 2, Name = "F" },
             Tags = ["x", "y"],
             IsPinned = true,
             CreatedAt = created,
@@ -102,10 +108,43 @@ public class NoteMapperTests
         Assert.Equal(3, response.Id);
         Assert.Equal("T", response.Title);
         Assert.Equal("C", response.Content);
+        Assert.Equal(2, response.FolderId);
         Assert.Equal("F", response.Folder);
         Assert.Equal(["x", "y"], response.Tags);
         Assert.True(response.IsPinned);
         Assert.Equal(created, response.CreatedAt);
         Assert.Equal(updated, response.UpdatedAt);
+    }
+}
+
+public class NoteMapperFolderTests
+{
+    [Fact]
+    public void ToEntity_WithoutFolder_LeavesTheNoteWithoutFolder()
+    {
+        var note = new CreateNoteDto { Title = "Título", Content = "" }.ToEntity(Guid.NewGuid());
+
+        Assert.Null(note.FolderId);
+        Assert.Null(note.Folder);
+    }
+
+    [Fact]
+    public void ApplyTo_WithoutFolder_MovesTheNoteOutOfItsFolder()
+    {
+        var note = new Note { Id = 1, FolderId = 3, Folder = new Folder { Id = 3, Name = "Antiga" } };
+
+        new UpdateNoteDto { Title = "Título", Content = "" }.ApplyTo(note, null);
+
+        Assert.Null(note.FolderId);
+        Assert.Null(note.Folder);
+    }
+
+    [Fact]
+    public void ToResponse_WithoutFolder_HasNoFolderIdNorName()
+    {
+        var response = new Note { Id = 1, Title = "T" }.ToResponse();
+
+        Assert.Null(response.FolderId);
+        Assert.Null(response.Folder);
     }
 }
