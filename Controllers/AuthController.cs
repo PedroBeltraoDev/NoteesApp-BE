@@ -68,6 +68,19 @@ public class AuthController : ControllerBase
         return Ok(ApiResponseDto<object?>.Ok(null, "Logout realizado com sucesso"));
     }
 
+    /// <summary>
+    /// Exclui a conta de quem está logado, com as notas, pastas e sessões. É definitivo.
+    /// Pede a senha atual (a conta demo, que não tem senha, pode mandar o corpo vazio).
+    /// </summary>
+    [HttpPost("delete-account")]
+    [Authorize]
+    [EnableRateLimiting("auth")]
+    public async Task<ActionResult<ApiResponseDto<object?>>> DeleteAccount([FromBody] DeleteAccountDto? dto)
+    {
+        await _authService.DeleteAccountAsync(User.GetUserId(), dto?.Password);
+        return Ok(ApiResponseDto<object?>.Ok(null, "Conta excluída com sucesso"));
+    }
+
     [HttpGet("me")]
     [Authorize]
     public async Task<ActionResult<ApiResponseDto<UserDto>>> Me()

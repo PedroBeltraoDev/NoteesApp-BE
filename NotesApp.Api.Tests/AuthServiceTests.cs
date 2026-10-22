@@ -228,4 +228,52 @@ public class AuthServiceTests
         _users.Verify(u => u.RevokeRefreshTokenAsync(stored, It.IsAny<DateTime>()), Times.Once);
         _users.Verify(u => u.RevokeAllRefreshTokensAsync(It.IsAny<Guid>(), It.IsAny<DateTime>()), Times.Never);
     }
+
+    // ---------- Excluir a conta
+
+    [Fact]
+    public async Task DeleteAccount_WithTheRightPassword_DeletesTheAccount()
+    {
+        var user = ExistingUser();
+        _users.Setup(u => u.GetByIdAsync(user.Id)).ReturnsAsync(user);
+
+        await _service.DeleteAccountAsync(user.Id, "senha-segura-123");
+
+        _users.Verify(u => u.DeleteAsync(user.Id), Times.Once);
+    }
+
+    [Theory]
+    [InlineData("senha-errada-123")]
+    [InlineData("")]
+    [InlineData(null)]
+    public async Task DeleteAccount_WithAWrongOrMissingPassword_DeletesNothing(string? password)
+    {
+        var user = ExistingUser();
+        _users.Setup(u => u.GetByIdAsync(user.Id)).ReturnsAsync(user);
+
+        await Assert.ThrowsAsync<InvalidPasswordException>(() => _service.DeleteAccountAsync(user.Id, password));
+
+        _users.Verify(u => u.DeleteAsync(It.IsAny<Guid>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteAccount_OfADemo_NeedsNoPassword()
+    {
+        var demo = new User { Email = "demo-x@" + AuthService.DemoEmailDomain, PasswordHash = "!", IsDemo = true };
+        _users.Setup(u => u.GetByIdAsync(demo.Id)).ReturnsAsync(demo);
+
+        await _service.DeleteAccountAsync(demo.Id, null);
+
+        _users.Verify(u => u.DeleteAsync(demo.Id), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteAccount_OfAnUnknownUser_IsUnauthorized()
+    {
+        _users.Setup(u => u.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync((User?)null);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.DeleteAccountAsync(Guid.NewGuid(), "qualquer"));
+
+        _users.Verify(u => u.DeleteAsync(It.IsAny<Guid>()), Times.Never);
+    }
 }

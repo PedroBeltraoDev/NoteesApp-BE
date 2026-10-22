@@ -19,7 +19,7 @@ API RESTful para gerenciamento de notas com organização por pastas e tags, des
 
 ## ✨ Funcionalidades
 
-- ✅ **Autenticação própria com JWT**: cadastro, login, refresh token com rotação e logout
+- ✅ **Autenticação própria com JWT**: cadastro, login, refresh token com rotação, logout e exclusão da conta (com confirmação de senha)
 - ✅ **Notas por usuário**: cada pessoa só enxerga e altera as próprias notas
 - ✅ **CRUD Completo** de notas (Criar, Ler, Atualizar, Deletar)
 - ✅ **Organização por Pastas** e Tags
@@ -195,7 +195,7 @@ NotesApp.Api.Tests/
 
 ### Endpoints
 
-Todas as rotas de `/api/notes`, `/api/folders` e `/api/auth/me` exigem o header `Authorization: Bearer <accessToken>`.
+Todas as rotas de `/api/notes`, `/api/folders`, `/api/auth/me` e `/api/auth/delete-account` exigem o header `Authorization: Bearer <accessToken>`.
 
 | Método | Endpoint | Auth | Descrição |
 |--------|----------|------|-----------|
@@ -205,6 +205,7 @@ Todas as rotas de `/api/notes`, `/api/folders` e `/api/auth/me` exigem o header 
 | `POST` | `/api/auth/refresh` | não | Troca o refresh token por um novo par de tokens |
 | `POST` | `/api/auth/logout` | não | Revoga o refresh token informado |
 | `GET` | `/api/auth/me` | sim | Dados do usuário autenticado |
+| `POST` | `/api/auth/delete-account` | sim | **Exclui a conta** com as notas, pastas e sessões (definitivo). Corpo `{ "password" }` com a senha atual; a conta demo pode mandar o corpo vazio. Senha errada: `400` com `errors.code = "invalid_password"` (não é `401`, para o cliente não achar que a sessão caiu) |
 | `GET` | `/api/health` | não | Liveness: o processo está de pé (não acessa o banco) |
 | `GET` | `/api/health/ready` | não | Readiness: verifica o banco; responde `503` se estiver inacessível |
 | `GET` | `/api/notes` | sim | Listar notas (filtros opcionais: `?folderId=3&tag=Y`, ou `?folder=Nome` para clientes antigos; paginação opcional: `?page=1&pageSize=20`) |
@@ -242,6 +243,8 @@ Fluxo para o frontend:
    A resposta é um **novo par de tokens**: guarde o novo `refreshToken`, o anterior deixa de valer.
 4. Se o refresh também falhar com `401`, a sessão acabou: volte para a tela de login.
 5. No logout, chame `POST /api/auth/logout` com `{ "refreshToken" }` e apague os tokens locais.
+6. Para excluir a conta, chame `POST /api/auth/delete-account` com `{ "password" }` e depois apague os tokens locais (os
+   refresh tokens já foram apagados no servidor junto com a conta).
 
 Regras importantes:
 

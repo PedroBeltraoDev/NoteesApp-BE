@@ -245,4 +245,113 @@ public class DemoFlowTests : IClassFixture<InMemoryApiFactory>
 
         Assert.Contains(HttpStatusCode.TooManyRequests, statuses);
     }
+
+    // ---------- Excluir a conta
+
+    private async Task<(HttpClient Client, JsonElement Auth, string Email)> RegisterAsync(InMemoryApiFactory factory, string password = "senha-segura-123")
+    {
+        var email = $"real-{Guid.NewGuid():N}@teste.com";
+        var registered = await factory.CreateClient().PostAsJsonAsync("/api/auth/register", new { email, password });
+        Assert.Equal(HttpStatusCode.Created, registered.StatusCode);
+        var auth = await DataAsync(registered);
+        return (ClientFor(factory, auth), auth, email);
+    }
+
+    [Fact]
+    public async Task DeleteAccount_RemovesTheAccountAndEverythingInIt_AndTheSessionStopsWorking()
+    {
+        var (client, auth, email) = await RegisterAsync(_factory);
+        var folder = await DataAsync(await client.PostAsJsonAsync("/api/folders", new { name = "Trabalho" }));
+        await client.PostAsJsonAsync("/api/notes", new { title = "Uma nota", content = "", folderId = folder.GetProperty("id").GetInt32() });
+        Assert.Equal((1, 1, 1), await CountsForAsync(email));
+
+        var response = await client.PostAsJsonAsync("/api/auth/delete-account", new { password = "senha-segura-123" });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal((0, 0, 0), await CountsForAsync(email));
+
+        // Sem como renovar a sessão nem entrar de novo com a mesma conta
+        var refresh = await _factory.CreateClient().PostAsJsonAsync("/api/auth/refresh", new { refreshToken = auth.GetProperty("refreshToken").GetString() });
+        Assert.Equal(HttpStatusCode.Unauthorized, refresh.StatusCode);
+        var login = await _factory.CreateClient().PostAsJsonAsync("/api/auth/login", new { email, password = "senha-segura-123" });
+        Assert.Equal(HttpStatusCode.Unauthorized, login.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/auth/me")).StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteAccount_WithAWrongPassword_Is400WithTheInvalidPasswordCode_AndNothingIsDeleted()
+    {
+        var (client, _, email) = await RegisterAsync(_factory);
+        await client.PostAsJsonAsync("/api/notes", new { title = "Fica", content = "" });
+
+        var response = await client.PostAsJsonAsync("/api/auth/delete-account", new { password = "senha-errada-123" });
+
+        // 400, não 401: um 401 faria o front achar que a sessão caiu
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("invalid_password", body.GetProperty("errors").GetProperty("code")[0].GetString());
+        Assert.Equal((1, 1, 0), await CountsForAsync(email));
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/auth/me")).StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteAccount_WithoutABody_IsRefusedForARegularAccount()
+    {
+        var (client, _, email) = await RegisterAsync(_factory);
+
+        var response = await client.PostAsync("/api/auth/delete-account", null);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal((1, 0, 0), await CountsForAsync(email));
+    }
+
+    [Fact]
+    public async Task DeleteAccount_RequiresALoggedInUser()
+    {
+        var response = await _factory.CreateClient().PostAsJsonAsync("/api/auth/delete-account", new { password = "senha-segura-123" });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteAccount_OfADemo_NeedsNoPassword_AndLeavesOtherAccountsAlone()
+    {
+        var demo = await StartDemoAsync(_factory);
+        var demoEmail = demo.GetProperty("user").GetProperty("email").GetString()!;
+        var otherDemoEmail = (await StartDemoAsync(_factory)).GetProperty("user").GetProperty("email").GetString()!;
+        var (_, _, realEmail) = await RegisterAsync(_factory);
+
+        var response = await ClientFor(_factory, demo).PostAsync("/api/auth/delete-account", null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal((0, 0, 0), await CountsForAsync(demoEmail));
+        Assert.Equal((1, 3, 1), await CountsForAsync(otherDemoEmail));
+        Assert.Equal((1, 0, 0), await CountsForAsync(realEmail));
+    }
+
+    [Fact]
+    public async Task DeleteAccount_DoesNotTouchOtherAccounts()
+    {
+        var (first, _, firstEmail) = await RegisterAsync(_factory);
+        var (second, _, secondEmail) = await RegisterAsync(_factory);
+        await second.PostAsJsonAsync("/api/notes", new { title = "Da outra pessoa", content = "" });
+
+        await first.PostAsJsonAsync("/api/auth/delete-account", new { password = "senha-segura-123" });
+
+        Assert.Equal((0, 0, 0), await CountsForAsync(firstEmail));
+        Assert.Equal((1, 1, 0), await CountsForAsync(secondEmail));
+    }
+
+    [Fact]
+    public async Task DeleteAccount_IsRateLimitedLikeTheOtherAuthRoutes()
+    {
+        using var factory = new RateLimitedInMemoryApiFactory();
+        var (client, _, _) = await RegisterAsync(factory);
+
+        var statuses = new List<HttpStatusCode>();
+        for (var i = 0; i < 6; i++)
+            statuses.Add((await client.PostAsJsonAsync("/api/auth/delete-account", new { password = "errada-123456" })).StatusCode);
+
+        Assert.Contains(HttpStatusCode.TooManyRequests, statuses);
+    }
 }
