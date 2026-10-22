@@ -34,6 +34,13 @@ public class RefreshRequestDto
     public string RefreshToken { get; set; } = string.Empty;
 }
 
+// Confirmação de senha para excluir a conta; a conta demo não tem senha e pode mandar o corpo vazio
+public class DeleteAccountDto
+{
+    [MaxLength(128)]
+    public string? Password { get; set; }
+}
+
 // IsDemo/DemoExpiresAt: contas de demonstração (temporárias); DemoExpiresAt é o fim do prazo, em UTC
 public record UserDto(Guid Id, string Email, bool IsDemo = false, DateTime? DemoExpiresAt = null);
 

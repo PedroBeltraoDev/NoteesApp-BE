@@ -17,6 +17,7 @@ public interface IAuthService
     Task<AuthResponseDto> RefreshAsync(string refreshToken);
     Task LogoutAsync(string refreshToken);
     Task<UserDto> GetCurrentUserAsync(Guid userId);
+    Task DeleteAccountAsync(Guid userId, string? password);
 }
 
 public class AuthService : IAuthService
@@ -167,6 +168,31 @@ public class AuthService : IAuthService
             ?? throw new UnauthorizedAccessException("Usuário não encontrado");
 
         return ToDto(user);
+    }
+
+    /// <summary>
+    /// Exclui a conta com tudo o que é dela (notas, pastas e sessões). Conta com senha exige a senha atual;
+    /// a demo não tem senha e é apagada direto.
+    /// </summary>
+    public async Task DeleteAccountAsync(Guid userId, string? password)
+    {
+        var user = await _users.GetByIdAsync(userId)
+            ?? throw new UnauthorizedAccessException("Usuário não encontrado");
+
+        if (!user.IsDemo)
+        {
+            var verified = !string.IsNullOrEmpty(password)
+                && _hasher.VerifyHashedPassword(user, user.PasswordHash, password) != PasswordVerificationResult.Failed;
+
+            if (!verified)
+            {
+                _logger.LogWarning("Senha incorreta ao excluir conta - ID: {UserId}", user.Id);
+                throw new InvalidPasswordException();
+            }
+        }
+
+        await _users.DeleteAsync(user.Id);
+        _logger.LogInformation("Conta excluída - ID: {UserId}", user.Id);
     }
 
     /// <summary>

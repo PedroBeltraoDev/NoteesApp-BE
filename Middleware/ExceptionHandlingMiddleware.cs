@@ -38,6 +38,14 @@ public class ExceptionHandlingMiddleware
             return;
         }
 
+        if (exception is InvalidPasswordException)
+        {
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await context.Response.WriteAsJsonAsync(ApiResponseDto<object>.Fail(
+                exception.Message, new Dictionary<string, string[]> { ["code"] = [InvalidPasswordException.Code] }));
+            return;
+        }
+
         var (statusCode, message) = exception switch
         {
             FolderNotFoundException => (HttpStatusCode.NotFound, "Pasta não encontrada"),

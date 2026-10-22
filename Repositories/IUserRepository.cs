@@ -17,6 +17,9 @@ public interface IUserRepository
     /// <summary>Apaga as demos vencidas com tudo o que é delas (notas, pastas, tokens). Devolve quantas.</summary>
     Task<int> DeleteExpiredDemosAsync(DateTime now);
 
+    /// <summary>Apaga a conta com tudo o que é dela (notas, pastas, tokens).</summary>
+    Task DeleteAsync(Guid userId);
+
     Task<RefreshToken?> GetRefreshTokenAsync(string tokenHash);
 
     /// <summary>Grava o token e remove os tokens já expirados do mesmo usuário.</summary>

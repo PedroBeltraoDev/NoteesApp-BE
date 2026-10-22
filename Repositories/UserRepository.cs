@@ -36,16 +36,20 @@ public class UserRepository : IUserRepository
     public Task<int> CountActiveDemosAsync(DateTime now)
         => _context.Users.CountAsync(u => u.IsDemo && u.DemoExpiresAt > now);
 
-    public async Task<int> DeleteExpiredDemosAsync(DateTime now)
-    {
-        var expired = _context.Users.Where(u => u.IsDemo && u.DemoExpiresAt <= now);
+    public Task<int> DeleteExpiredDemosAsync(DateTime now)
+        => DeleteWithEverythingAsync(_context.Users.Where(u => u.IsDemo && u.DemoExpiresAt <= now));
 
+    public async Task DeleteAsync(Guid userId)
+        => await DeleteWithEverythingAsync(_context.Users.Where(u => u.Id == userId));
+
+    private async Task<int> DeleteWithEverythingAsync(IQueryable<User> users)
+    {
         // No Postgres as chaves estrangeiras em cascata apagam notas, pastas e tokens junto com a conta
         if (_context.Database.IsRelational())
-            return await expired.ExecuteDeleteAsync();
+            return await users.ExecuteDeleteAsync();
 
         // Provedores sem cascata (banco em memória, nos testes): apaga o que é do dono "na mão"
-        var ids = await expired.Select(u => u.Id).ToListAsync();
+        var ids = await users.Select(u => u.Id).ToListAsync();
         _context.Notes.RemoveRange(_context.Notes.Where(n => ids.Contains(n.UserId)));
         _context.Folders.RemoveRange(_context.Folders.Where(f => ids.Contains(f.UserId)));
         _context.RefreshTokens.RemoveRange(_context.RefreshTokens.Where(t => ids.Contains(t.UserId)));
